@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="fr" class="light">
+<head>
+    <meta charset="UTF-8">
+    <title>Avosdim - Gestion Stock v6.9.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        indigo: { 600: '#4F46E5', 700: '#4338CA' },
+                        gray: { 50: '#F9FAFB', 100: '#F3F4F6', 700: '#374151', 800: '#1F2937', 900: '#111827' }
+                    },
+                    animation: { 'shake': 'shake 0.82s cubic-bezier(.36,.07,.19,.97) both' },
+                    keyframes: { 'shake': { '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' }, '20%, 80%': { transform: 'translate3d(2px, 0, 0)' }, '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' }, '40%, 60%': { transform: 'translate3d(4px, 0, 0)' } } }
+                }
+            }
+        }
+    </script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4F46E5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+        
+        .pin-btn { width: 4rem; height: 4rem; border-radius: 9999px; font-size: 1.5rem; font-weight: 700; background-color: #F3F4F6; color: #1F2937; display: flex; align-items: center; justify-content: center; user-select: none; transition: background-color 0.2s; cursor: pointer; }
+        .pin-btn:hover { background-color: #E5E7EB; } .pin-btn:active { background-color: #D1D5DB; }
+        .dark .pin-btn { background-color: #374151; color: white; } .dark .pin-btn:hover { background-color: #4B5563; }
+        
+        .pin-dot { width: 1rem; height: 1rem; border-radius: 9999px; border: 2px solid #D1D5DB; transition: all 0.2s; }
+        .dark .pin-dot { border-color: #6B7280; } .pin-dot.filled { background-color: #4F46E5; border-color: #4F46E5; }
+        .sticky-header th { position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .tag-badge { cursor: pointer; transition: all 0.2s; } .tag-badge:hover { transform: scale(1.05); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        
+        .table-compact th, .table-compact td { padding: 4px 6px; white-space: nowrap; }
+        .hidden-col { display: none !important; }
+        
+        /* STYLE BOUTON UNIFIÉ (Compatible Dark Mode) */
+        .btn-std { 
+            padding: 0.25rem 0.75rem; font-size: 0.75rem; line-height: 1rem; border-radius: 0.25rem; border-width: 1px; border-style: solid; transition: all 0.2s; user-select: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-weight: 500; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        /* Actif (Light) */
+        .btn-std.active { background-color: #4F46E5; color: white; border-color: #4F46E5; }
+        .btn-std.active:hover { background-color: #4338CA; }
+        /* Inactif (Light) */
+        .btn-std.inactive { background-color: white; color: #6B7280; border-color: #D1D5DB; }
+        .btn-std.inactive:hover { background-color: #F9FAFB; color: #374151; }
+        
+        /* Dark Mode Overrides for Buttons */
+        .dark .btn-std.inactive { background-color: #374151; color: #D1D5DB; border-color: #4B5563; }
+        .dark .btn-std.inactive:hover { background-color: #4B5563; color: white; }
+        
+        .btn-action { background-color: #EEF2FF; color: #4F46E5; border-color: #C7D2FE; }
+        .btn-action:hover { background-color: #E0E7FF; }
+        .dark .btn-action { background-color: #312E81; color: #818CF8; border-color: #4338CA; }
+        .dark .btn-action:hover { background-color: #3730A3; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen font-sans transition-colors duration-200">
+
+    <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2"></div>
+
+    <!-- LOGIN -->
+    <div id="loginView" class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 space-y-8">
+            <div class="text-center"><div class="mx-auto h-16 w-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4"><i data-lucide="shield-check" class="h-8 w-8 text-indigo-600"></i></div><h2 class="text-2xl font-bold">Identification</h2></div>
+            <div><label class="block text-sm font-medium mb-2">Opérateur</label><select id="loginUserSelect" class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-lg focus:ring-2 focus:ring-indigo-500"><option value="">Chargement...</option></select></div>
+            <div class="flex justify-center space-x-6 mb-4"><div class="pin-dot" id="dot-1"></div><div class="pin-dot" id="dot-2"></div><div class="pin-dot" id="dot-3"></div><div class="pin-dot" id="dot-4"></div></div>
+            <div class="grid grid-cols-3 gap-4 max-w-[280px] mx-auto">
+                <button class="pin-btn" onclick="enterPin('1')">1</button><button class="pin-btn" onclick="enterPin('2')">2</button><button class="pin-btn" onclick="enterPin('3')">3</button>
+                <button class="pin-btn" onclick="enterPin('4')">4</button><button class="pin-btn" onclick="enterPin('5')">5</button><button class="pin-btn" onclick="enterPin('6')">6</button>
+                <button class="pin-btn" onclick="enterPin('7')">7</button><button class="pin-btn" onclick="enterPin('8')">8</button><button class="pin-btn" onclick="enterPin('9')">9</button>
+                <button class="w-16 h-16 rounded-full text-xl font-bold text-red-500 bg-red-50 hover:bg-red-100 flex items-center justify-center" onclick="clearPin()"><i data-lucide="delete" class="w-6 h-6"></i></button>
+                <button class="pin-btn" onclick="enterPin('0')">0</button>
+                <button class="w-16 h-16 rounded-full text-xl font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 flex items-center justify-center" onclick="submitLogin()"><i data-lucide="arrow-right" class="w-6 h-6"></i></button>
+            </div>
+            <div id="loginError" class="text-center text-red-500 text-sm font-bold h-5"></div>
+        </div>
+    </div>
+
+    <!-- APP -->
+    <div id="appView" class="hidden">
+        <header class="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50">
+            <div class="w-full px-4 h-16 flex items-center justify-between">
+                <div class="flex items-center space-x-3"><i data-lucide="layers" class="h-6 w-6 text-indigo-600"></i><h1 class="text-lg font-bold hidden sm:block">Stock Manager <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full ml-1">v6.9.1</span></h1></div>
+                <nav class="flex space-x-2">
+                    <div id="menu-admin" class="flex space-x-2 hidden">
+                        <button onclick="showView('home')" id="nav-home" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Comparateur</button>
+                        <button onclick="showView('database')" id="nav-db" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Base</button>
+                        <button onclick="showView('validation')" id="nav-val" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Validation</button>
+                        <button onclick="showView('history')" id="nav-hist" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Historique</button>
+                        <button onclick="showView('settings')" id="nav-set" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"><i data-lucide="settings" class="h-4 w-4 mr-1"></i> Config</button>
+                    </div>
+                    <button onclick="showView('operator')" id="nav-audit" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"><i data-lucide="clipboard-list" class="h-4 w-4 mr-1"></i> Audit</button>
+                </nav>
+                <div class="flex items-center space-x-3"><div class="text-right"><p class="text-xs font-semibold" id="userDisplayName">User</p><p class="text-[10px] text-gray-500" id="userRoleDisplay">Role</p></div>
+                <button onclick="toggleTheme()" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" title="Thème"><i id="theme-icon" data-lucide="moon" class="h-5 w-5"></i></button>
+                <button onclick="logout()" class="p-2 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-gray-700"><i data-lucide="log-out" class="h-5 w-5"></i></button></div>
+            </div>
+        </header>
+
+        <main class="w-[98%] mx-auto py-6 space-y-6">
+            
+            <!-- VUE OPERATEUR -->
+            <div id="operatorArea" class="hidden space-y-6 fade-in">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <div><h2 class="text-lg font-bold flex items-center"><i data-lucide="list-todo" class="h-5 w-5 mr-2 text-indigo-600"></i>Ma File d'Attente</h2><p class="text-sm text-gray-500 dark:text-gray-400" id="queueInfo">Chargement...</p></div>
+                    <button onclick="loadOperatorTasks()" class="p-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-full"><i data-lucide="refresh-cw" class="h-6 w-6 text-gray-600 dark:text-gray-200"></i></button>
+                </div>
+                <div id="taskList" class="space-y-4"></div>
+                <div id="emptyState" class="hidden text-center py-10"><h3 class="text-lg font-medium dark:text-white">Tout est à jour !</h3></div>
+            </div>
+
+            <!-- VUE ADMIN VALIDATION -->
+            <div id="adminValidationArea" class="hidden space-y-6 fade-in">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
+                    <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold flex items-center"><i data-lucide="check-circle" class="h-6 w-6 mr-2 text-indigo-600"></i>Validation</h2><button onclick="loadAdminValidation()" class="text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"><i data-lucide="refresh-cw" class="h-4 w-4"></i></button></div>
+                    <div class="mb-4 flex space-x-2"><button onclick="validateConforme()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium flex items-center shadow"><i data-lucide="check-check" class="h-4 w-4 mr-2"></i> Valider conformes</button></div>
+                    <div class="overflow-x-auto"><table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-3 py-3 text-left">Emplacement</th><th class="px-3 py-3 text-left">Article</th><th class="px-3 py-3 text-center">Théorique</th><th class="px-3 py-3 text-center">Compté</th><th class="px-3 py-3 text-center font-bold">Ecart</th><th class="px-3 py-3 text-right">Actions</th></tr></thead><tbody id="validationTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody></table></div>
+                </div>
+                <div class="text-center mt-8"><button class="text-xs text-red-500 underline font-bold" onclick="debugGenerate()">[Admin] RESET & Générer 10 tâches</button></div>
+            </div>
+
+            <!-- VUE PARAMETRES -->
+            <div id="settingsArea" class="hidden space-y-6 fade-in">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-bold mb-4 flex items-center"><i data-lucide="users" class="h-6 w-6 mr-2 text-indigo-600"></i>Utilisateurs</h2>
+                    <div class="mb-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg flex items-end gap-2">
+                        <div><label class="text-xs font-bold dark:text-gray-300">Nom</label><input id="newNom" class="w-full p-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white"></div>
+                        <div><label class="text-xs font-bold dark:text-gray-300">Prénom</label><input id="newPrenom" class="w-full p-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white"></div>
+                        <div><label class="text-xs font-bold dark:text-gray-300">PIN</label><input id="newPin" type="number" class="w-20 p-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white"></div>
+                        <div><label class="text-xs font-bold dark:text-gray-300">Rôle</label><select id="newRole" class="w-full p-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white"><option>Opérateur</option><option>Admin</option></select></div>
+                        <div><label class="text-xs font-bold dark:text-gray-300">Zone</label><select id="newZone" class="w-full p-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white"><option value="F">Franklin</option><option value="G">George</option><option value="A">Abraham</option></select></div>
+                        <button onclick="addUser()" class="p-2 bg-indigo-600 text-white rounded"><i data-lucide="plus" class="h-5 w-5"></i></button>
+                    </div>
+                    <table class="min-w-full text-sm"><thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-2 text-left">Nom</th><th class="p-2 text-left">PIN</th><th class="p-2 text-left">Rôle</th><th class="p-2 text-left">Zone</th><th class="p-2"></th></tr></thead><tbody id="usersTableBody"></tbody></table>
+                </div>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md mt-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center"><i data-lucide="tags" class="h-6 w-6 mr-2 text-indigo-600"></i>Règles de Fréquence</h2>
+                    <table class="min-w-full text-sm"><thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-2 text-left">Tag</th><th class="p-2 text-left">Fréquence (Jours)</th><th class="p-2 text-left">Couleur</th><th class="p-2">Action</th></tr></thead><tbody id="tagsTableBody"></tbody></table>
+                </div>
+            </div>
+
+            <!-- VUE HISTORIQUE -->
+            <div id="historyArea" class="hidden space-y-6 fade-in">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold flex items-center"><i data-lucide="history" class="h-6 w-6 mr-2 text-indigo-600"></i>Historique</h2><button onclick="loadTaskHistory()" class="text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"><i data-lucide="refresh-cw" class="h-4 w-4"></i></button></div><div class="overflow-x-auto"><table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-3 py-3 text-left">Date</th><th class="px-3 py-3 text-left">Opérateur</th><th class="px-3 py-3 text-left">Emplacement</th><th class="px-3 py-3 text-left">Article</th><th class="px-3 py-3 text-center">Ecart</th></tr></thead><tbody id="historyTableBody" class="divide-y divide-gray-200 dark:divide-gray-700 text-sm"></tbody></table></div></div>
+            </div>
+
+            <!-- VUE IMPORT -->
+            <div id="homeArea" class="hidden"><div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700"><h2 class="text-lg font-bold mb-4">Module Comparateur</h2><p class="text-gray-500 dark:text-gray-400 text-sm mb-4">CSV sans tags supporté.</p><button onclick="document.getElementById('importForm').classList.toggle('hidden')" class="mt-4 text-indigo-600">Afficher l'import</button><form id="importForm" class="space-y-4 mt-4 hidden"><div><label class="dark:text-gray-300">Date</label><input type="date" id="importDate" class="border p-2 w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white rounded"></div><div><label class="dark:text-gray-300">Fichier</label><input type="file" id="csvFile" class="border p-2 w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white rounded"></div><button type="button" onclick="handleFileUpload()" class="bg-indigo-600 text-white px-4 py-2 rounded">Importer</button></form></div></div>
+            
+            <!-- VUE BDD COMPLETE -->
+            <div id="databaseArea" class="hidden">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded shadow-lg h-[85vh] flex flex-col">
+                    <div class="flex justify-between items-center mb-4 shrink-0">
+                        <h2 class="text-xl font-bold text-gray-800 dark:text-white">Base de Données</h2>
+                        <div class="flex space-x-2">
+                            <input type="text" id="dbSearch" placeholder="Chercher ref/nom..." onkeyup="filterDb()" class="border p-1 rounded text-sm w-64 shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <button onclick="forceReloadDb()" class="btn-std btn-action"><i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i> Force Reload</button>
+                        </div>
+                    </div>
+                    
+                    <!-- BARRE D'OUTILS AMELIOREE -->
+                    <div class="flex flex-wrap gap-3 mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 items-center">
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs font-bold text-gray-500 dark:text-gray-300 mr-1 uppercase">Statut :</span>
+                            <button onclick="toggleStatusFilter('Actif')" class="btn-std active" id="btn-filter-actif">Actifs</button>
+                            <button onclick="toggleStatusFilter('Inactif')" class="btn-std inactive" id="btn-filter-inactif">Inactifs</button>
+                        </div>
+                        <div class="w-px h-5 bg-gray-300 dark:bg-gray-500 mx-2"></div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs font-bold text-gray-500 dark:text-gray-300 mr-1 uppercase">Afficher :</span>
+                            <button onclick="toggleColumnGroup('col-f')" class="btn-std inactive" id="btn-col-f">Franklin</button>
+                            <button onclick="toggleColumnGroup('col-g')" class="btn-std inactive" id="btn-col-g">Georges</button>
+                            <button onclick="toggleColumnGroup('col-a')" class="btn-std inactive" id="btn-col-a">Abraham</button>
+                            <button onclick="toggleColumnGroup('col-tech')" class="btn-std inactive" id="btn-col-tech">Dims/Poids</button>
+                        </div>
+                    </div>
+                    
+                    <!-- WRAPPER SCROLLABLE -->
+                    <div class="overflow-auto flex-1 border rounded bg-white dark:bg-gray-900 dark:border-gray-700 relative">
+                        <table class="min-w-full text-xs divide-y divide-gray-200 dark:divide-gray-700 table-compact">
+                            <thead class="bg-gray-100 dark:bg-gray-700 sticky-header">
+                                <tr>
+                                    <th class="text-left font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 w-16">Statut</th>
+                                    <th class="text-left font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 w-16">Tags</th>
+                                    <th class="text-left font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 w-24">Ref</th>
+                                    <th class="text-left font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 w-64">Nom</th>
+                                    <th class="text-left font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 w-32">Fournisseur</th>
+                                    
+                                    <th class="col-f hidden-col text-center font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-l border-blue-200 dark:border-blue-800">F-Rack</th>
+                                    <th class="col-f hidden-col text-center font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30">F-Row</th>
+                                    <th class="col-f hidden-col text-center font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30">F-Case</th>
+                                    <th class="col-f hidden-col text-center font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30">F-Sur</th>
+                                    
+                                    <th class="col-g hidden-col text-center font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-l border-orange-200 dark:border-orange-800">G-Rack</th>
+                                    <th class="col-g hidden-col text-center font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30">G-Row</th>
+                                    <th class="col-g hidden-col text-center font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30">G-Case</th>
+                                    <th class="col-g hidden-col text-center font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30">G-Sur</th>
+                                    
+                                    <th class="col-a hidden-col text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-l border-purple-200 dark:border-purple-800">A-Rack</th>
+                                    <th class="col-a hidden-col text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30">A-Row</th>
+                                    <th class="col-a hidden-col text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30">A-Case</th>
+                                    <th class="col-a hidden-col text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30">A-Sur</th>
+                                    
+                                    <th class="col-tech hidden-col text-center font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border-l">Cote 1</th>
+                                    <th class="col-tech hidden-col text-center font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Cote 2</th>
+                                    <th class="col-tech hidden-col text-center font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Cote 3</th>
+                                    <th class="col-tech hidden-col text-center font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Poids</th>
+                                    
+                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border-l">Ajouté</th>
+                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Modifié</th>
+                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Vu le</th>
+                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Inv. le</th>
+                                    <th class="col-del hidden-col text-right font-bold text-red-600 bg-red-50 dark:bg-red-900/30 border-l">Supprimé</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dbTableBody" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
+                        </table>
+                        <div id="dbLoader" class="hidden absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center"><div class="loader"></div></div>
+                        <div id="dbSentinel" class="h-4 w-full"></div>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1 flex justify-between">
+                        <span>Double-cliquez sur "Tag" pour modifier.</span>
+                        <span id="dbCountDisplay">0 articles affichés</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        let currentUser = null; let pinBuffer = ""; let myTasks = []; let pendingValidations = []; 
+        let masterDbData = []; let filteredDbData = []; let isDbLoaded = false; let dbObserver = null;
+        
+        let viewState = {
+            columns: { 'col-f': false, 'col-g': false, 'col-a': false, 'col-tech': false },
+            status: { 'Actif': true, 'Inactif': false }
+        };
+
+        /* --- AUTH & INIT --- */
+        document.addEventListener('DOMContentLoaded', () => { 
+            initTheme(); // Charge le thème au démarrage
+            loadUserList(); 
+        });
+
+        // --- THEME LOGIC ---
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('theme-icon').setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+        }
+
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+                document.getElementById('theme-icon').setAttribute('data-lucide', 'moon');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+                document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
+            }
+            lucide.createIcons();
+        }
+
+        function loadUserList() { const s=document.getElementById('loginUserSelect'); google.script.run.withSuccessHandler(u=>{ s.innerHTML='<option value="">Choisir...</option>'; if(!u||u.length===0)s.innerHTML='<option>Aucun utilisateur</option>'; else u.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.text=x.displayName;s.appendChild(o)}); }).getPublicUserList(); }
+        function enterPin(d) { if(pinBuffer.length<4){pinBuffer+=d;updatePinDots();if(pinBuffer.length===4)setTimeout(submitLogin,100)} }
+        function clearPin() { pinBuffer=""; updatePinDots(); document.getElementById('loginError').innerText=""; }
+        function updatePinDots() { for(let i=1;i<=4;i++) document.getElementById(`dot-${i}`).classList.toggle('filled', i<=pinBuffer.length); }
+        function submitLogin() { const u=document.getElementById('loginUserSelect').value; if(!u){clearPin();document.getElementById('loginError').innerText="Sélectionnez un nom";return;} google.script.run.withSuccessHandler(r=>{ if(r.success){currentUser=r.user;initApp(r.user);}else{clearPin();document.getElementById('loginError').innerText=r.error;} }).loginUser(u, pinBuffer); }
+        function initApp(user) { document.getElementById('loginView').classList.add('hidden'); document.getElementById('appView').classList.remove('hidden'); document.getElementById('userDisplayName').innerText = user.prenom; document.getElementById('userRoleDisplay').innerText = user.role; if(user.role === 'Admin') { document.getElementById('menu-admin').classList.remove('hidden'); document.getElementById('nav-audit').classList.add('hidden'); showView('validation'); } else { document.getElementById('menu-admin').classList.add('hidden'); document.getElementById('nav-audit').classList.remove('hidden'); showView('operator'); } }
+        function logout() { currentUser=null; pinBuffer=""; myTasks=[]; pendingValidations=[]; clearPin(); document.getElementById('taskList').innerHTML=''; document.getElementById('appView').classList.add('hidden'); document.getElementById('loginView').classList.remove('hidden'); document.getElementById('loginUserSelect').value=""; }
+
+        /* --- OPERATOR/ADMIN LOGIC --- */
+        function loadOperatorTasks() { google.script.run.withSuccessHandler(tasks => { myTasks = tasks; renderTasks(); }).getOperatorTodoList(currentUser.id, currentUser.zone); }
+        function renderTasks() { const el = document.getElementById('taskList'); el.innerHTML = ''; if(myTasks.length === 0) { document.getElementById('emptyState').classList.remove('hidden'); return; } document.getElementById('emptyState').classList.add('hidden'); myTasks.forEach(t => { const card = document.createElement('div'); card.className = "bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col gap-4"; card.innerHTML = `<div><div class="text-6xl font-black text-blue-700 dark:text-blue-400 mb-2 tracking-tight">${t.locSnap}</div><div class="text-4xl font-mono font-bold text-gray-900 dark:text-white">${t.ref}</div><div class="text-lg text-gray-500 dark:text-gray-400 mt-1 truncate">${t.name}</div></div><div class="flex items-center gap-4 mt-2"><input type="number" id="input-${t.taskId}" placeholder="Qté" class="flex-1 py-6 text-5xl font-bold border-2 border-gray-300 rounded-2xl text-center focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 dark:bg-gray-700 dark:text-white dark:border-gray-600"><button onclick="submitCount('${t.taskId}')" class="p-6 bg-green-600 text-white rounded-2xl shadow-lg active:scale-95 transition-transform"><i data-lucide="check" class="w-12 h-12"></i></button></div>`; el.appendChild(card); }); lucide.createIcons(); }
+        function submitCount(id) { const ipt = document.getElementById(`input-${id}`); if(!ipt.value) { ipt.classList.add('border-red-500'); return; } ipt.closest('div.bg-white').remove(); google.script.run.submitTask(id, ipt.value, currentUser.id); }
+        function loadAdminValidation() { const tbody = document.getElementById('validationTableBody'); tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Chargement...</td></tr>'; google.script.run.withSuccessHandler(list => { pendingValidations = list; renderValidationTable(); }).getPendingValidations(); }
+        function renderValidationTable() { const tbody = document.getElementById('validationTableBody'); tbody.innerHTML = ''; if(pendingValidations.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aucune validation en attente.</td></tr>'; return; } pendingValidations.forEach(row => { const isError = row.delta !== 0; const tr = document.createElement('tr'); tr.className = isError ? "bg-red-50 dark:bg-red-900/20" : "bg-green-50 dark:bg-green-900/20"; tr.innerHTML = `<td class="px-3 py-3 font-mono text-xs">${row.loc}</td><td class="px-3 py-3"><div class="font-bold text-sm">${row.ref}</div></td><td class="px-3 py-3 text-center text-gray-500">${row.theo}</td><td class="px-3 py-3 text-center font-bold text-lg">${row.counted}</td><td class="px-3 py-3 text-center font-bold ${isError ? 'text-red-600' : 'text-green-600'}">${row.delta}</td><td class="px-3 py-3 text-right"><button class="text-xs bg-white border px-2 py-1 rounded shadow text-gray-700">Valider</button></td>`; tbody.appendChild(tr); }); }
+        function validateConforme() { const toValidate = pendingValidations.filter(r => r.delta === 0).map(r => r.taskId); if(toValidate.length === 0) return; if(!confirm(`Valider ${toValidate.length} lignes conformes ?`)) return; google.script.run.withSuccessHandler(() => loadAdminValidation()).validateTaskBatch(toValidate); }
+        function debugGenerate() { if(confirm("ATTENTION: Ceci efface la file d'attente actuelle. Continuer ?")) google.script.run.withSuccessHandler(()=> { alert("Génération terminée."); loadAdminValidation(); }).resetAndGenerateTasks(10, 'all'); }
+        function loadTaskHistory() { const tbody = document.getElementById('historyTableBody'); tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Chargement...</td></tr>'; google.script.run.withSuccessHandler(list => { tbody.innerHTML = ''; if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">Aucun historique.</td></tr>'; return; } list.forEach(row => { const isError = row.delta !== 0; tbody.insertAdjacentHTML('beforeend', `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700"><td class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">${row.date}</td><td class="px-3 py-2 text-xs font-medium">${row.user}</td><td class="px-3 py-2 text-xs font-mono">${row.loc}</td><td class="px-3 py-2 text-xs font-mono">${row.ref}</td><td class="px-3 py-2 text-center text-xs font-bold ${isError ? 'text-red-600' : 'text-green-600'}">${row.delta > 0 ? '+'+row.delta : row.delta}</td></tr>`); }); }).getTaskHistory(); }
+        function loadSettings() { google.script.run.withSuccessHandler(data => { const uBody = document.getElementById('usersTableBody'); uBody.innerHTML = data.users.map(u => `<tr><td class="p-2 border-b dark:border-gray-700">${u.prenom} ${u.nom}</td><td class="p-2 border-b dark:border-gray-700 font-mono">${u.pin}</td><td class="p-2 border-b dark:border-gray-700">${u.role}</td><td class="p-2 border-b dark:border-gray-700">${u.zone}</td><td class="p-2 border-b dark:border-gray-700 text-right"><button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`).join(''); const tBody = document.getElementById('tagsTableBody'); tBody.innerHTML = data.tags.map(t => `<tr><td class="p-2 border-b dark:border-gray-700 font-bold" style="color:${t.color}">${t.name}</td><td class="p-2 border-b dark:border-gray-700"><input type="number" class="border w-16 p-1 rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white" value="${t.freq}" onchange="saveTag('${t.name}', this.value, '${t.color}')"></td><td class="p-2 border-b dark:border-gray-700"><div class="w-6 h-6 rounded-full" style="background:${t.color}"></div></td><td class="p-2 border-b dark:border-gray-700 text-gray-400 text-xs">${t.desc}</td></tr>`).join(''); lucide.createIcons(); }).getSettingsData(); }
+        function addUser() { const user = { nom: document.getElementById('newNom').value, prenom: document.getElementById('newPrenom').value, pin: document.getElementById('newPin').value, role: document.getElementById('newRole').value, zone: document.getElementById('newZone').value }; if(!user.nom || !user.pin) return alert("Champs manquants"); google.script.run.withSuccessHandler(() => { loadSettings(); document.getElementById('newNom').value=''; document.getElementById('newPin').value=''; }).saveUser(user); }
+        function deleteUser(id) { if(confirm("Supprimer ?")) google.script.run.withSuccessHandler(() => loadSettings()).deleteUser(id); }
+        function saveTag(name, freq, color) { google.script.run.withSuccessHandler(() => console.log("Saved")).saveTag({name, freq, color}); }
+
+        /* --- COMMON & DB EDIT --- */
+        function showView(name) {
+            ['homeArea','databaseArea','operatorArea','adminValidationArea','settingsArea','historyArea'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+            ['nav-home','nav-db','nav-val','nav-audit','nav-set','nav-hist'].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.remove('bg-indigo-50','text-indigo-700','border-indigo-100'); });
+            const map = { 'home':'homeArea', 'database':'databaseArea', 'operator':'operatorArea', 'validation':'adminValidationArea', 'settings':'settingsArea', 'history':'historyArea' };
+            const navMap = { 'home':'nav-home', 'database':'nav-db', 'validation':'nav-val', 'operator':'nav-audit', 'settings':'nav-set', 'history':'nav-hist' };
+            document.getElementById(map[name]).classList.remove('hidden');
+            const nav = document.getElementById(navMap[name]);
+            if(nav) nav.classList.add('bg-indigo-50','text-indigo-700','border-indigo-100');
+            if(name==='operator') loadOperatorTasks();
+            if(name==='validation') loadAdminValidation();
+            if(name==='settings') loadSettings();
+            if(name==='history') loadTaskHistory();
+            if(name==='database' && !isDbLoaded) loadDatabase();
+        }
+        
+        function forceReloadDb() { isDbLoaded = false; loadDatabase(); }
+        
+        function loadDatabase() { 
+            const loader = document.getElementById('dbLoader'); loader.classList.remove('hidden');
+            google.script.run.withSuccessHandler(r=>{ 
+                masterDbData = r.items; isDbLoaded = true; loader.classList.add('hidden');
+                filterDb();
+                if(!dbObserver) {
+                    dbObserver = new IntersectionObserver(e => { if(e[0].isIntersecting) renderNextBatch(); }, { root: document.querySelector('#databaseArea .overflow-auto'), threshold: 0.1 });
+                    dbObserver.observe(document.getElementById('dbSentinel'));
+                }
+                document.getElementById('dbCountDisplay').innerText = `${masterDbData.length} articles`;
+            }).withFailureHandler(() => loader.classList.add('hidden')).getMasterDatabase(); 
+        }
+        
+        function toggleColumnGroup(group) {
+            viewState.columns[group] = !viewState.columns[group];
+            const btn = document.getElementById(`btn-${group}`);
+            btn.classList.toggle('active', viewState.columns[group]);
+            btn.classList.toggle('inactive', !viewState.columns[group]);
+            document.querySelectorAll(`.${group}`).forEach(el => el.classList.toggle('hidden-col', !viewState.columns[group]));
+        }
+        
+        function toggleStatusFilter(status) {
+            viewState.status[status] = !viewState.status[status];
+            const btnId = status === 'Actif' ? 'btn-filter-actif' : 'btn-filter-inactif';
+            const btn = document.getElementById(btnId);
+            btn.classList.toggle('active', viewState.status[status]);
+            btn.classList.toggle('inactive', !viewState.status[status]);
+            
+            // LOGIQUE VISIBILITE COLONNE SUPPRIME
+            if (status === 'Inactif') {
+                document.querySelectorAll('.col-del').forEach(el => el.classList.toggle('hidden-col', !viewState.status['Inactif']));
+            }
+            filterDb();
+        }
+        
+        function filterDb() {
+            const term = document.getElementById('dbSearch').value.toLowerCase();
+            filteredDbData = masterDbData.filter(i => {
+                const matchesTerm = i.ref.toLowerCase().includes(term) || i.name.toLowerCase().includes(term);
+                const matchesStatus = (i.status === 'Actif' && viewState.status.Actif) || (i.status === 'Inactif' && viewState.status.Inactif);
+                return matchesTerm && matchesStatus;
+            });
+            document.getElementById('dbTableBody').innerHTML = '';
+            renderNextBatch();
+            document.getElementById('dbCountDisplay').innerText = `${filteredDbData.length} articles affichés`;
+        }
+        
+        function renderNextBatch() {
+            const tbody = document.getElementById('dbTableBody');
+            const start = tbody.childElementCount;
+            if(start >= filteredDbData.length) return;
+            const batch = filteredDbData.slice(start, start + 50);
+            
+            const html = batch.map(i=> {
+                const tagBadge = i.tags ? `<span class="tag-badge px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px]" onclick="promptEditTag('${i.ref}', '${i.tags}')">${i.tags}</span>` : `<span class="tag-badge px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px]" onclick="promptEditTag('${i.ref}', '')">+</span>`;
+                const d = (v) => (v && v!=='0') ? v : '<span class="text-gray-200 dark:text-gray-600">-</span>';
+                
+                const cf = viewState.columns['col-f'] ? '' : 'hidden-col';
+                const cg = viewState.columns['col-g'] ? '' : 'hidden-col';
+                const ca = viewState.columns['col-a'] ? '' : 'hidden-col';
+                const ct = viewState.columns['col-tech'] ? '' : 'hidden-col';
+                const cdel = viewState.status['Inactif'] ? '' : 'hidden-col';
+                
+                return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td>${i.status === 'Actif' ? '<span class="text-green-600">●</span>' : '<span class="text-red-300">●</span>'}</td><td>${tagBadge}</td><td class="font-mono text-gray-700 dark:text-gray-300 font-bold">${i.ref}</td><td class="truncate max-w-[150px] dark:text-gray-300" title="${i.name}">${i.name}</td><td class="truncate max-w-[100px] text-gray-500 dark:text-gray-400">${i.suppName || ''}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30 border-l border-blue-100 dark:border-blue-800">${d(i.rackF)}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30">${d(i.rowF)}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30">${d(i.caseF)}</td><td class="col-f ${cf} text-center text-blue-400 dark:text-blue-200 text-[9px] bg-blue-50/50 dark:bg-blue-900/30 truncate max-w-[50px]">${i.surF||''}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30 border-l border-orange-100 dark:border-orange-800">${d(i.rackG)}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30">${d(i.rowG)}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30">${d(i.caseG)}</td><td class="col-g ${cg} text-center text-orange-400 dark:text-orange-200 text-[9px] bg-orange-50/50 dark:bg-orange-900/30 truncate max-w-[50px]">${i.surG||''}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30 border-l border-purple-100 dark:border-purple-800">${d(i.rackA)}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30">${d(i.rowA)}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30">${d(i.caseA)}</td><td class="col-a ${ca} text-center text-purple-400 dark:text-purple-200 text-[9px] bg-purple-50/50 dark:bg-purple-900/30 truncate max-w-[50px]">${i.surA||''}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500 border-l">${d(i.cote1)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote2)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote3)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.poids)}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px] border-l">${i.dateAdd}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.dateMod}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.lastSeen}</td><td class="text-right text-indigo-600 dark:text-indigo-400 font-medium">${i.lastCount || '-'}</td><td class="col-del ${cdel} text-right text-red-500 text-[9px] border-l">${i.dateDel || ''}</td></tr>`;
+            }).join('');
+            tbody.insertAdjacentHTML('beforeend', html);
+        }
+        
+        function promptEditTag(ref, currentTags) {
+            const newTags = prompt(`Tags pour ${ref} :`, currentTags);
+            if (newTags !== null) {
+                const item = masterDbData.find(i => i.ref === ref); if(item) item.tags = newTags;
+                filterDb(); google.script.run.updateArticleTag(ref, newTags);
+            }
+        }
+        function handleFileUpload() { 
+            const dateInput = document.getElementById('importDate'); const fileInput = document.getElementById('csvFile'); 
+            if (!dateInput.value || !fileInput.files.length) { alert("Veuillez sélectionner une date et un fichier."); return; } 
+            const parts = dateInput.value.split('-'); const formattedDateName = `${parts[2]}/${parts[1]}/${parts[0]}`; 
+            const file = fileInput.files[0]; const reader = new FileReader(); 
+            reader.onload = function(e) { 
+                const content = e.target.result; 
+                google.script.run.withSuccessHandler((res) => { 
+                    alert(res.message); dateInput.value = ""; fileInput.value = ""; 
+                    isDbLoaded = false; // Force reload next time
+                }).saveImportToHistory(content, formattedDateName, file.name); 
+            }; 
+            reader.readAsText(file); 
+        }
+    </script>
+</body>
+</html>
