@@ -2,7 +2,7 @@
 <html lang="fr" class="light">
 <head>
     <meta charset="UTF-8">
-    <title>Avosdim - Gestion Stock v6.9.1</title>
+    <title>Avosdim - Gestion Stock v6.9.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
@@ -41,26 +41,27 @@
         .btn-std { 
             padding: 0.25rem 0.75rem; font-size: 0.75rem; line-height: 1rem; border-radius: 0.25rem; border-width: 1px; border-style: solid; transition: all 0.2s; user-select: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-weight: 500; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         }
-        /* Actif (Light) */
         .btn-std.active { background-color: #4F46E5; color: white; border-color: #4F46E5; }
         .btn-std.active:hover { background-color: #4338CA; }
-        /* Inactif (Light) */
         .btn-std.inactive { background-color: white; color: #6B7280; border-color: #D1D5DB; }
         .btn-std.inactive:hover { background-color: #F9FAFB; color: #374151; }
-        
-        /* Dark Mode Overrides for Buttons */
         .dark .btn-std.inactive { background-color: #374151; color: #D1D5DB; border-color: #4B5563; }
         .dark .btn-std.inactive:hover { background-color: #4B5563; color: white; }
-        
         .btn-action { background-color: #EEF2FF; color: #4F46E5; border-color: #C7D2FE; }
         .btn-action:hover { background-color: #E0E7FF; }
         .dark .btn-action { background-color: #312E81; color: #818CF8; border-color: #4338CA; }
         .dark .btn-action:hover { background-color: #3730A3; }
+
+        /* TABS */
+        .tab-btn { border-bottom: 2px solid transparent; color: #6B7280; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem; transition: all 0.2s; }
+        .tab-btn:hover { color: #374151; border-color: #D1D5DB; }
+        .tab-btn.active { color: #4F46E5; border-bottom-color: #4F46E5; }
+        .dark .tab-btn { color: #9CA3AF; }
+        .dark .tab-btn:hover { color: #E5E7EB; border-color: #4B5563; }
+        .dark .tab-btn.active { color: #818CF8; border-bottom-color: #818CF8; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen font-sans transition-colors duration-200">
-
-    <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2"></div>
 
     <!-- LOGIN -->
     <div id="loginView" class="min-h-screen flex flex-col items-center justify-center p-4">
@@ -84,13 +85,12 @@
     <div id="appView" class="hidden">
         <header class="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50">
             <div class="w-full px-4 h-16 flex items-center justify-between">
-                <div class="flex items-center space-x-3"><i data-lucide="layers" class="h-6 w-6 text-indigo-600"></i><h1 class="text-lg font-bold hidden sm:block">Stock Manager <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full ml-1">v6.9.1</span></h1></div>
+                <div class="flex items-center space-x-3"><i data-lucide="layers" class="h-6 w-6 text-indigo-600"></i><h1 class="text-lg font-bold hidden sm:block">Stock Manager <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full ml-1">v6.9.6</span></h1></div>
                 <nav class="flex space-x-2">
                     <div id="menu-admin" class="flex space-x-2 hidden">
                         <button onclick="showView('home')" id="nav-home" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Comparateur</button>
                         <button onclick="showView('database')" id="nav-db" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Base</button>
-                        <button onclick="showView('validation')" id="nav-val" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Validation</button>
-                        <button onclick="showView('history')" id="nav-hist" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Historique</button>
+                        <button onclick="showView('validation')" id="nav-val" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Inv. Tournant</button>
                         <button onclick="showView('settings')" id="nav-set" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"><i data-lucide="settings" class="h-4 w-4 mr-1"></i> Config</button>
                     </div>
                     <button onclick="showView('operator')" id="nav-audit" class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"><i data-lucide="clipboard-list" class="h-4 w-4 mr-1"></i> Audit</button>
@@ -113,18 +113,86 @@
                 <div id="emptyState" class="hidden text-center py-10"><h3 class="text-lg font-medium dark:text-white">Tout est à jour !</h3></div>
             </div>
 
-            <!-- VUE ADMIN VALIDATION -->
+            <!-- VUE INV. TOURNANT (NOUVEAU DESIGN TABLEAU DE BORD) -->
             <div id="adminValidationArea" class="hidden space-y-6 fade-in">
                 <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
-                    <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold flex items-center"><i data-lucide="check-circle" class="h-6 w-6 mr-2 text-indigo-600"></i>Validation</h2><button onclick="loadAdminValidation()" class="text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"><i data-lucide="refresh-cw" class="h-4 w-4"></i></button></div>
-                    <div class="mb-4 flex space-x-2"><button onclick="validateConforme()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium flex items-center shadow"><i data-lucide="check-check" class="h-4 w-4 mr-2"></i> Valider conformes</button></div>
-                    <div class="overflow-x-auto"><table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-3 py-3 text-left">Emplacement</th><th class="px-3 py-3 text-left">Article</th><th class="px-3 py-3 text-center">Théorique</th><th class="px-3 py-3 text-center">Compté</th><th class="px-3 py-3 text-center font-bold">Ecart</th><th class="px-3 py-3 text-right">Actions</th></tr></thead><tbody id="validationTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody></table></div>
+                    <!-- HEADER -->
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold flex items-center"><i data-lucide="check-circle" class="h-6 w-6 mr-2 text-indigo-600"></i>Inventaire Tournant</h2>
+                        <button onclick="refreshCurrentTab()" class="text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"><i data-lucide="refresh-cw" class="h-4 w-4"></i></button>
+                    </div>
+
+                    <!-- TABS NAVIGATION -->
+                    <div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+                        <button onclick="switchInvTab('validation')" id="tab-btn-validation" class="tab-btn active">Validation</button>
+                        <button onclick="switchInvTab('encours')" id="tab-btn-encours" class="tab-btn">En Cours / Listes</button>
+                        <button onclick="switchInvTab('history')" id="tab-btn-history" class="tab-btn">Historique</button>
+                    </div>
+
+                    <!-- TAB 1: VALIDATION CONTENT -->
+                    <div id="tab-content-validation" class="block">
+                        <div class="mb-4 flex space-x-2">
+                            <button onclick="validateConforme()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium flex items-center shadow"><i data-lucide="check-check" class="h-4 w-4 mr-2"></i> Valider conformes</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr><th class="px-3 py-3 text-left">Emplacement</th><th class="px-3 py-3 text-left">Article</th><th class="px-3 py-3 text-center">Théorique</th><th class="px-3 py-3 text-center">Compté</th><th class="px-3 py-3 text-center font-bold">Ecart</th><th class="px-3 py-3 text-right">Actions</th></tr>
+                                </thead>
+                                <tbody id="validationTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: EN COURS / LISTES CONTENT -->
+                    <div id="tab-content-encours" class="hidden">
+                         <div class="mb-4 flex space-x-2 justify-between items-center">
+                            <div class="text-sm text-gray-500">Liste des comptages en attente ou assignés.</div>
+                            <div class="flex gap-2">
+                                <button onclick="openAddArticleModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium flex items-center shadow"><i data-lucide="plus" class="h-4 w-4 mr-2"></i> Ajouter Article</button>
+                                <button onclick="debugGenerate()" class="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-xs font-bold" title="Regénérer la liste auto">[DEV] Reset & Générer</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr><th class="px-3 py-3 text-left">Article</th><th class="px-3 py-3 text-left">Emplacement</th><th class="px-3 py-3 text-center">Statut</th><th class="px-3 py-3 text-right">Actions</th></tr>
+                                </thead>
+                                <tbody id="todoTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: HISTORY CONTENT -->
+                    <div id="tab-content-history" class="hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr><th class="px-3 py-3 text-left">Date</th><th class="px-3 py-3 text-left">Opérateur</th><th class="px-3 py-3 text-left">Emplacement</th><th class="px-3 py-3 text-left">Article</th><th class="px-3 py-3 text-center">Ecart</th></tr>
+                                </thead>
+                                <tbody id="historyTableBody" class="divide-y divide-gray-200 dark:divide-gray-700 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-center mt-8"><button class="text-xs text-red-500 underline font-bold" onclick="debugGenerate()">[Admin] RESET & Générer 10 tâches</button></div>
             </div>
 
             <!-- VUE PARAMETRES -->
             <div id="settingsArea" class="hidden space-y-6 fade-in">
+                <!-- Config Générale -->
+                 <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-bold mb-4 flex items-center"><i data-lucide="sliders" class="h-6 w-6 mr-2 text-indigo-600"></i>Configuration Générale</h2>
+                    <div class="flex items-center space-x-4">
+                        <div>
+                            <label class="block text-xs font-bold mb-1 dark:text-gray-300">Taille des lots auto (Mensuel)</label>
+                            <input type="number" id="settingBatchSize" class="border p-2 rounded w-24 dark:bg-gray-600 dark:border-gray-500 dark:text-white" onchange="saveParam('AUTO_BATCH_SIZE', this.value)">
+                        </div>
+                        <div class="pt-5">
+                             <button onclick="installTrigger()" class="text-xs bg-indigo-100 text-indigo-700 px-3 py-2 rounded hover:bg-indigo-200">Activer l'automatisation mensuelle (1er à 6h)</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
                     <h2 class="text-xl font-bold mb-4 flex items-center"><i data-lucide="users" class="h-6 w-6 mr-2 text-indigo-600"></i>Utilisateurs</h2>
                     <div class="mb-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg flex items-end gap-2">
@@ -141,11 +209,6 @@
                     <h2 class="text-xl font-bold mb-4 flex items-center"><i data-lucide="tags" class="h-6 w-6 mr-2 text-indigo-600"></i>Règles de Fréquence</h2>
                     <table class="min-w-full text-sm"><thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-2 text-left">Tag</th><th class="p-2 text-left">Fréquence (Jours)</th><th class="p-2 text-left">Couleur</th><th class="p-2">Action</th></tr></thead><tbody id="tagsTableBody"></tbody></table>
                 </div>
-            </div>
-
-            <!-- VUE HISTORIQUE -->
-            <div id="historyArea" class="hidden space-y-6 fade-in">
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold flex items-center"><i data-lucide="history" class="h-6 w-6 mr-2 text-indigo-600"></i>Historique</h2><button onclick="loadTaskHistory()" class="text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"><i data-lucide="refresh-cw" class="h-4 w-4"></i></button></div><div class="overflow-x-auto"><table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-3 py-3 text-left">Date</th><th class="px-3 py-3 text-left">Opérateur</th><th class="px-3 py-3 text-left">Emplacement</th><th class="px-3 py-3 text-left">Article</th><th class="px-3 py-3 text-center">Ecart</th></tr></thead><tbody id="historyTableBody" class="divide-y divide-gray-200 dark:divide-gray-700 text-sm"></tbody></table></div></div>
             </div>
 
             <!-- VUE IMPORT -->
@@ -210,10 +273,13 @@
                                     <th class="col-tech hidden-col text-center font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Cote 3</th>
                                     <th class="col-tech hidden-col text-center font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Poids</th>
                                     
-                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border-l">Ajouté</th>
+                                    <!-- AJOUT COLONNE STOCK -->
+                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border-l">Stock</th>
+
+                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Ajouté</th>
                                     <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Modifié</th>
                                     <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Vu le</th>
-                                    <th class="text-right font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">Inv. le</th>
+                                    <th class="text-right font-bold text-indigo-600 dark:text-indigo-400 font-medium">Inv. le</th>
                                     <th class="col-del hidden-col text-right font-bold text-red-600 bg-red-50 dark:bg-red-900/30 border-l">Supprimé</th>
                                 </tr>
                             </thead>
@@ -232,10 +298,23 @@
         </main>
     </div>
 
+    <!-- MODALE AJOUT MANUEL -->
+    <div id="modalAddManual" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-[60]">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-96">
+            <h3 class="text-lg font-bold mb-4 dark:text-white">Ajouter à la liste</h3>
+            <input type="text" id="manualRefInput" placeholder="Référence Article" class="w-full border p-2 rounded mb-4 dark:bg-gray-700 dark:text-white">
+            <div class="flex justify-end gap-2">
+                <button onclick="document.getElementById('modalAddManual').classList.add('hidden')" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded">Annuler</button>
+                <button onclick="confirmAddManual()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Ajouter</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         lucide.createIcons();
         let currentUser = null; let pinBuffer = ""; let myTasks = []; let pendingValidations = []; 
         let masterDbData = []; let filteredDbData = []; let isDbLoaded = false; let dbObserver = null;
+        let currentInvTab = 'validation';
         
         let viewState = {
             columns: { 'col-f': false, 'col-g': false, 'col-a': false, 'col-tech': false },
@@ -285,29 +364,119 @@
         function loadOperatorTasks() { google.script.run.withSuccessHandler(tasks => { myTasks = tasks; renderTasks(); }).getOperatorTodoList(currentUser.id, currentUser.zone); }
         function renderTasks() { const el = document.getElementById('taskList'); el.innerHTML = ''; if(myTasks.length === 0) { document.getElementById('emptyState').classList.remove('hidden'); return; } document.getElementById('emptyState').classList.add('hidden'); myTasks.forEach(t => { const card = document.createElement('div'); card.className = "bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col gap-4"; card.innerHTML = `<div><div class="text-6xl font-black text-blue-700 dark:text-blue-400 mb-2 tracking-tight">${t.locSnap}</div><div class="text-4xl font-mono font-bold text-gray-900 dark:text-white">${t.ref}</div><div class="text-lg text-gray-500 dark:text-gray-400 mt-1 truncate">${t.name}</div></div><div class="flex items-center gap-4 mt-2"><input type="number" id="input-${t.taskId}" placeholder="Qté" class="flex-1 py-6 text-5xl font-bold border-2 border-gray-300 rounded-2xl text-center focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 dark:bg-gray-700 dark:text-white dark:border-gray-600"><button onclick="submitCount('${t.taskId}')" class="p-6 bg-green-600 text-white rounded-2xl shadow-lg active:scale-95 transition-transform"><i data-lucide="check" class="w-12 h-12"></i></button></div>`; el.appendChild(card); }); lucide.createIcons(); }
         function submitCount(id) { const ipt = document.getElementById(`input-${id}`); if(!ipt.value) { ipt.classList.add('border-red-500'); return; } ipt.closest('div.bg-white').remove(); google.script.run.submitTask(id, ipt.value, currentUser.id); }
+        
+        /* --- NEW INV TABS LOGIC --- */
+        function switchInvTab(tabName) {
+            currentInvTab = tabName;
+            ['validation', 'encours', 'history'].forEach(t => {
+                document.getElementById(`tab-btn-${t}`).classList.remove('active');
+                document.getElementById(`tab-content-${t}`).classList.add('hidden');
+                document.getElementById(`tab-content-${t}`).classList.remove('block');
+            });
+            document.getElementById(`tab-btn-${tabName}`).classList.add('active');
+            document.getElementById(`tab-content-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-content-${tabName}`).classList.add('block');
+            refreshCurrentTab();
+        }
+
+        function refreshCurrentTab() {
+            if(currentInvTab === 'validation') loadAdminValidation();
+            if(currentInvTab === 'encours') loadInProgressList();
+            if(currentInvTab === 'history') loadTaskHistory();
+        }
+
         function loadAdminValidation() { const tbody = document.getElementById('validationTableBody'); tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Chargement...</td></tr>'; google.script.run.withSuccessHandler(list => { pendingValidations = list; renderValidationTable(); }).getPendingValidations(); }
         function renderValidationTable() { const tbody = document.getElementById('validationTableBody'); tbody.innerHTML = ''; if(pendingValidations.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aucune validation en attente.</td></tr>'; return; } pendingValidations.forEach(row => { const isError = row.delta !== 0; const tr = document.createElement('tr'); tr.className = isError ? "bg-red-50 dark:bg-red-900/20" : "bg-green-50 dark:bg-green-900/20"; tr.innerHTML = `<td class="px-3 py-3 font-mono text-xs">${row.loc}</td><td class="px-3 py-3"><div class="font-bold text-sm">${row.ref}</div></td><td class="px-3 py-3 text-center text-gray-500">${row.theo}</td><td class="px-3 py-3 text-center font-bold text-lg">${row.counted}</td><td class="px-3 py-3 text-center font-bold ${isError ? 'text-red-600' : 'text-green-600'}">${row.delta}</td><td class="px-3 py-3 text-right"><button class="text-xs bg-white border px-2 py-1 rounded shadow text-gray-700">Valider</button></td>`; tbody.appendChild(tr); }); }
+        
+        function loadInProgressList() {
+             const tbody = document.getElementById('todoTableBody');
+             tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Chargement...</td></tr>';
+             google.script.run.withSuccessHandler(list => {
+                 tbody.innerHTML = '';
+                 if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">Liste vide.</td></tr>'; return; }
+                 list.forEach(r => {
+                     const tr = document.createElement('tr');
+                     tr.innerHTML = `<td class="px-3 py-3 font-bold">${r.ref}</td><td class="px-3 py-3 text-xs font-mono">${r.loc}</td><td class="px-3 py-3 text-center text-xs"><span class="bg-gray-100 px-2 py-1 rounded">${r.status}</span></td><td class="px-3 py-3 text-right"><button onclick="deleteTask('${r.id}')" class="text-red-500 hover:bg-red-50 p-1 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>`;
+                     tbody.appendChild(tr);
+                 });
+                 lucide.createIcons();
+             }).getInProgressTasks();
+        }
+
+        function deleteTask(id) {
+            if(confirm("Retirer cet article de la liste de comptage ?")) {
+                google.script.run.withSuccessHandler(() => loadInProgressList()).deleteTask(id);
+            }
+        }
+        
+        function openAddArticleModal() {
+            document.getElementById('manualRefInput').value = '';
+            document.getElementById('modalAddManual').classList.remove('hidden');
+            document.getElementById('manualRefInput').focus();
+            // Load DB discreetly if not loaded to help checking
+            if(!isDbLoaded) google.script.run.withSuccessHandler(r => { masterDbData = r.items; isDbLoaded=true; }).getMasterDatabase();
+        }
+        
+        function confirmAddManual() {
+            const ref = document.getElementById('manualRefInput').value.trim();
+            if(!ref) return;
+            // Check frontend first if DB loaded
+            if(isDbLoaded) {
+                const exists = masterDbData.find(i => i.ref === ref);
+                if(!exists) return alert("Référence inconnue (Vérifiez la casse ou rechargez la BDD).");
+            }
+            google.script.run.withSuccessHandler(r => {
+                if(r.success) {
+                    document.getElementById('modalAddManual').classList.add('hidden');
+                    loadInProgressList();
+                } else {
+                    alert(r.error);
+                }
+            }).addTaskManually(ref);
+        }
+
         function validateConforme() { const toValidate = pendingValidations.filter(r => r.delta === 0).map(r => r.taskId); if(toValidate.length === 0) return; if(!confirm(`Valider ${toValidate.length} lignes conformes ?`)) return; google.script.run.withSuccessHandler(() => loadAdminValidation()).validateTaskBatch(toValidate); }
         function debugGenerate() { if(confirm("ATTENTION: Ceci efface la file d'attente actuelle. Continuer ?")) google.script.run.withSuccessHandler(()=> { alert("Génération terminée."); loadAdminValidation(); }).resetAndGenerateTasks(10, 'all'); }
         function loadTaskHistory() { const tbody = document.getElementById('historyTableBody'); tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Chargement...</td></tr>'; google.script.run.withSuccessHandler(list => { tbody.innerHTML = ''; if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">Aucun historique.</td></tr>'; return; } list.forEach(row => { const isError = row.delta !== 0; tbody.insertAdjacentHTML('beforeend', `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700"><td class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">${row.date}</td><td class="px-3 py-2 text-xs font-medium">${row.user}</td><td class="px-3 py-2 text-xs font-mono">${row.loc}</td><td class="px-3 py-2 text-xs font-mono">${row.ref}</td><td class="px-3 py-2 text-center text-xs font-bold ${isError ? 'text-red-600' : 'text-green-600'}">${row.delta > 0 ? '+'+row.delta : row.delta}</td></tr>`); }); }).getTaskHistory(); }
-        function loadSettings() { google.script.run.withSuccessHandler(data => { const uBody = document.getElementById('usersTableBody'); uBody.innerHTML = data.users.map(u => `<tr><td class="p-2 border-b dark:border-gray-700">${u.prenom} ${u.nom}</td><td class="p-2 border-b dark:border-gray-700 font-mono">${u.pin}</td><td class="p-2 border-b dark:border-gray-700">${u.role}</td><td class="p-2 border-b dark:border-gray-700">${u.zone}</td><td class="p-2 border-b dark:border-gray-700 text-right"><button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`).join(''); const tBody = document.getElementById('tagsTableBody'); tBody.innerHTML = data.tags.map(t => `<tr><td class="p-2 border-b dark:border-gray-700 font-bold" style="color:${t.color}">${t.name}</td><td class="p-2 border-b dark:border-gray-700"><input type="number" class="border w-16 p-1 rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white" value="${t.freq}" onchange="saveTag('${t.name}', this.value, '${t.color}')"></td><td class="p-2 border-b dark:border-gray-700"><div class="w-6 h-6 rounded-full" style="background:${t.color}"></div></td><td class="p-2 border-b dark:border-gray-700 text-gray-400 text-xs">${t.desc}</td></tr>`).join(''); lucide.createIcons(); }).getSettingsData(); }
+        
+        function loadSettings() { 
+            google.script.run.withSuccessHandler(data => { 
+                // Users
+                const uBody = document.getElementById('usersTableBody'); 
+                uBody.innerHTML = data.users.map(u => `<tr><td class="p-2 border-b dark:border-gray-700">${u.prenom} ${u.nom}</td><td class="p-2 border-b dark:border-gray-700 font-mono">${u.pin}</td><td class="p-2 border-b dark:border-gray-700">${u.role}</td><td class="p-2 border-b dark:border-gray-700">${u.zone}</td><td class="p-2 border-b dark:border-gray-700 text-right"><button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`).join(''); 
+                // Tags
+                const tBody = document.getElementById('tagsTableBody'); 
+                tBody.innerHTML = data.tags.map(t => `<tr><td class="p-2 border-b dark:border-gray-700 font-bold" style="color:${t.color}">${t.name}</td><td class="p-2 border-b dark:border-gray-700"><input type="number" class="border w-16 p-1 rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white" value="${t.freq}" onchange="saveTag('${t.name}', this.value, '${t.color}')"></td><td class="p-2 border-b dark:border-gray-700"><div class="w-6 h-6 rounded-full" style="background:${t.color}"></div></td><td class="p-2 border-b dark:border-gray-700 text-gray-400 text-xs">${t.desc}</td></tr>`).join(''); 
+                // Params
+                if(data.params) {
+                    const batchP = data.params.find(p => p.key === 'AUTO_BATCH_SIZE');
+                    if(batchP) document.getElementById('settingBatchSize').value = batchP.value;
+                    else document.getElementById('settingBatchSize').value = 50;
+                }
+                lucide.createIcons(); 
+            }).getSettingsData(); 
+        }
         function addUser() { const user = { nom: document.getElementById('newNom').value, prenom: document.getElementById('newPrenom').value, pin: document.getElementById('newPin').value, role: document.getElementById('newRole').value, zone: document.getElementById('newZone').value }; if(!user.nom || !user.pin) return alert("Champs manquants"); google.script.run.withSuccessHandler(() => { loadSettings(); document.getElementById('newNom').value=''; document.getElementById('newPin').value=''; }).saveUser(user); }
         function deleteUser(id) { if(confirm("Supprimer ?")) google.script.run.withSuccessHandler(() => loadSettings()).deleteUser(id); }
         function saveTag(name, freq, color) { google.script.run.withSuccessHandler(() => console.log("Saved")).saveTag({name, freq, color}); }
+        function saveParam(key, val) { google.script.run.saveParam(key, val); }
+        function installTrigger() { if(confirm("Activer la génération auto le 1er du mois à 6h ?")) google.script.run.withSuccessHandler((r)=>alert(r.message)).installMonthlyTrigger(); }
 
         /* --- COMMON & DB EDIT --- */
         function showView(name) {
-            ['homeArea','databaseArea','operatorArea','adminValidationArea','settingsArea','historyArea'].forEach(id=>document.getElementById(id).classList.add('hidden'));
-            ['nav-home','nav-db','nav-val','nav-audit','nav-set','nav-hist'].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.remove('bg-indigo-50','text-indigo-700','border-indigo-100'); });
-            const map = { 'home':'homeArea', 'database':'databaseArea', 'operator':'operatorArea', 'validation':'adminValidationArea', 'settings':'settingsArea', 'history':'historyArea' };
-            const navMap = { 'home':'nav-home', 'database':'nav-db', 'validation':'nav-val', 'operator':'nav-audit', 'settings':'nav-set', 'history':'nav-hist' };
+            ['homeArea','databaseArea','operatorArea','adminValidationArea','settingsArea'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+            ['nav-home','nav-db','nav-val','nav-audit','nav-set'].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.remove('bg-indigo-50','text-indigo-700','border-indigo-100'); });
+            const map = { 'home':'homeArea', 'database':'databaseArea', 'operator':'operatorArea', 'validation':'adminValidationArea', 'settings':'settingsArea' };
+            const navMap = { 'home':'nav-home', 'database':'nav-db', 'validation':'nav-val', 'operator':'nav-audit', 'settings':'nav-set' };
             document.getElementById(map[name]).classList.remove('hidden');
             const nav = document.getElementById(navMap[name]);
             if(nav) nav.classList.add('bg-indigo-50','text-indigo-700','border-indigo-100');
             if(name==='operator') loadOperatorTasks();
-            if(name==='validation') loadAdminValidation();
+            if(name==='validation') {
+                 // Force refresh of the current internal tab
+                 refreshCurrentTab();
+            }
             if(name==='settings') loadSettings();
-            if(name==='history') loadTaskHistory();
             if(name==='database' && !isDbLoaded) loadDatabase();
         }
         
@@ -376,7 +545,7 @@
                 const ct = viewState.columns['col-tech'] ? '' : 'hidden-col';
                 const cdel = viewState.status['Inactif'] ? '' : 'hidden-col';
                 
-                return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td>${i.status === 'Actif' ? '<span class="text-green-600">●</span>' : '<span class="text-red-300">●</span>'}</td><td>${tagBadge}</td><td class="font-mono text-gray-700 dark:text-gray-300 font-bold">${i.ref}</td><td class="truncate max-w-[150px] dark:text-gray-300" title="${i.name}">${i.name}</td><td class="truncate max-w-[100px] text-gray-500 dark:text-gray-400">${i.suppName || ''}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30 border-l border-blue-100 dark:border-blue-800">${d(i.rackF)}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30">${d(i.rowF)}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30">${d(i.caseF)}</td><td class="col-f ${cf} text-center text-blue-400 dark:text-blue-200 text-[9px] bg-blue-50/50 dark:bg-blue-900/30 truncate max-w-[50px]">${i.surF||''}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30 border-l border-orange-100 dark:border-orange-800">${d(i.rackG)}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30">${d(i.rowG)}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30">${d(i.caseG)}</td><td class="col-g ${cg} text-center text-orange-400 dark:text-orange-200 text-[9px] bg-orange-50/50 dark:bg-orange-900/30 truncate max-w-[50px]">${i.surG||''}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30 border-l border-purple-100 dark:border-purple-800">${d(i.rackA)}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30">${d(i.rowA)}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30">${d(i.caseA)}</td><td class="col-a ${ca} text-center text-purple-400 dark:text-purple-200 text-[9px] bg-purple-50/50 dark:bg-purple-900/30 truncate max-w-[50px]">${i.surA||''}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500 border-l">${d(i.cote1)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote2)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote3)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.poids)}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px] border-l">${i.dateAdd}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.dateMod}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.lastSeen}</td><td class="text-right text-indigo-600 dark:text-indigo-400 font-medium">${i.lastCount || '-'}</td><td class="col-del ${cdel} text-right text-red-500 text-[9px] border-l">${i.dateDel || ''}</td></tr>`;
+                return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td>${i.status === 'Actif' ? '<span class="text-green-600">●</span>' : '<span class="text-red-300">●</span>'}</td><td>${tagBadge}</td><td class="font-mono text-gray-700 dark:text-gray-300 font-bold">${i.ref}</td><td class="truncate max-w-[150px] dark:text-gray-300" title="${i.name}">${i.name}</td><td class="truncate max-w-[100px] text-gray-500 dark:text-gray-400">${i.suppName || ''}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30 border-l border-blue-100 dark:border-blue-800">${d(i.rackF)}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30">${d(i.rowF)}</td><td class="col-f ${cf} text-center font-mono text-blue-600 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/30">${d(i.caseF)}</td><td class="col-f ${cf} text-center text-blue-400 dark:text-blue-200 text-[9px] bg-blue-50/50 dark:bg-blue-900/30 truncate max-w-[50px]">${i.surF||''}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30 border-l border-orange-100 dark:border-orange-800">${d(i.rackG)}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30">${d(i.rowG)}</td><td class="col-g ${cg} text-center font-mono text-orange-600 dark:text-orange-300 bg-orange-50/50 dark:bg-orange-900/30">${d(i.caseG)}</td><td class="col-g ${cg} text-center text-orange-400 dark:text-orange-200 text-[9px] bg-orange-50/50 dark:bg-orange-900/30 truncate max-w-[50px]">${i.surG||''}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30 border-l border-purple-100 dark:border-purple-800">${d(i.rackA)}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30">${d(i.rowA)}</td><td class="col-a ${ca} text-center font-mono text-purple-600 dark:text-purple-300 bg-purple-50/50 dark:bg-purple-900/30">${d(i.caseA)}</td><td class="col-a ${ca} text-center text-purple-400 dark:text-purple-200 text-[9px] bg-purple-50/50 dark:bg-purple-900/30 truncate max-w-[50px]">${i.surA||''}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500 border-l">${d(i.cote1)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote2)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote3)}</td><td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.poids)}</td><td class="text-right text-gray-800 dark:text-gray-200 font-bold border-l">${i.stock}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px] border-l">${i.dateAdd}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.dateMod}</td><td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.lastSeen}</td><td class="text-right text-indigo-600 dark:text-indigo-400 font-medium">${i.lastCount || '-'}</td><td class="col-del ${cdel} text-right text-red-500 text-[9px] border-l">${i.dateDel || ''}</td></tr>`;
             }).join('');
             tbody.insertAdjacentHTML('beforeend', html);
         }
@@ -395,10 +564,16 @@
             const file = fileInput.files[0]; const reader = new FileReader(); 
             reader.onload = function(e) { 
                 const content = e.target.result; 
-                google.script.run.withSuccessHandler((res) => { 
-                    alert(res.message); dateInput.value = ""; fileInput.value = ""; 
-                    isDbLoaded = false; // Force reload next time
-                }).saveImportToHistory(content, formattedDateName, file.name); 
+                // CORRECTION ICI : Ajout du FailureHandler
+                google.script.run
+                    .withSuccessHandler((res) => { 
+                        alert(res.message); dateInput.value = ""; fileInput.value = ""; 
+                        isDbLoaded = false; // Force reload next time
+                    })
+                    .withFailureHandler((err) => {
+                        alert("Erreur Import : " + err.message);
+                    })
+                    .saveImportToHistory(content, formattedDateName, file.name); 
             }; 
             reader.readAsText(file); 
         }
