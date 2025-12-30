@@ -1,0 +1,39 @@
+<script>
+    // --- SETTINGS LOGIC ---
+    function loadSettings() { 
+        google.script.run.withSuccessHandler(data => { 
+            const uBody = document.getElementById('usersTableBody'); 
+            uBody.innerHTML = data.users.map(u => `<tr><td class="p-2 border-b dark:border-gray-700">${u.prenom} ${u.nom}</td><td class="p-2 border-b dark:border-gray-700 font-mono">${u.pin}</td><td class="p-2 border-b dark:border-gray-700">${u.role}</td><td class="p-2 border-b dark:border-gray-700">${u.zone}</td><td class="p-2 border-b dark:border-gray-700 text-right"><button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`).join(''); 
+            const tBody = document.getElementById('tagsTableBody'); 
+            tBody.innerHTML = data.tags.map(t => `<tr><td class="p-2 border-b dark:border-gray-700 font-bold" style="color:${t.color}">${t.name}</td><td class="p-2 border-b dark:border-gray-700"><input type="number" class="border w-16 p-1 rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white" value="${t.freq}" onchange="saveTag('${t.name}', this.value, '${t.color}')"></td><td class="p-2 border-b dark:border-gray-700"><div class="w-6 h-6 rounded-full" style="background:${t.color}"></div></td><td class="p-2 border-b dark:border-gray-700 text-gray-400 text-xs">${t.desc}</td></tr>`).join(''); 
+            if(data.params) { const batchP = data.params.find(p => p.key === 'AUTO_BATCH_SIZE'); if(batchP) document.getElementById('settingBatchSize').value = batchP.value; else document.getElementById('settingBatchSize').value = 50; } 
+            isTriggerActive = data.triggerActive; 
+            const btn = document.getElementById('btn-trigger-action'); 
+            if(btn) { 
+                if (isTriggerActive) { btn.className = "text-xs bg-red-100 text-red-700 px-3 py-2 rounded hover:bg-red-200 border border-red-200 transition-colors flex items-center"; btn.innerHTML = '<i data-lucide="stop-circle" class="w-3 h-3 mr-2"></i> Désactiver'; } 
+                else { btn.className = "text-xs bg-green-100 text-green-700 px-3 py-2 rounded hover:bg-green-200 border border-green-200 transition-colors flex items-center"; btn.innerHTML = '<i data-lucide="play" class="w-3 h-3 mr-2"></i> Activer (1er du mois 6h)'; } 
+            } 
+            lucide.createIcons(); 
+        }).withFailureHandler(err => { alert("Erreur: " + err.message); }).getSettingsData(); 
+    }
+
+    function addUser() { const user = { nom: document.getElementById('newNom').value, prenom: document.getElementById('newPrenom').value, pin: document.getElementById('newPin').value, role: document.getElementById('newRole').value, zone: document.getElementById('newZone').value }; if(!user.nom || !user.pin) return alert("Champs manquants"); google.script.run.withSuccessHandler(() => { loadSettings(); document.getElementById('newNom').value=''; document.getElementById('newPin').value=''; }).saveUser(user); }
+    function deleteUser(id) { if(confirm("Supprimer ?")) google.script.run.withSuccessHandler(() => loadSettings()).deleteUser(id); }
+    function saveTag(name, freq, color) { google.script.run.withSuccessHandler(() => console.log("Saved")).saveTag({name, freq, color}); }
+    function saveParam(key, val) { google.script.run.saveParam(key, val); }
+
+    // --- AUTOMATION TRIGGERS ---
+    function promptToggleTrigger() { const title = document.getElementById('modalTriggerTitle'); const desc = document.getElementById('modalTriggerDesc'); const btn = document.getElementById('btnConfirmTrigger'); if (isTriggerActive) { title.innerText = "Désactiver ?"; desc.innerHTML = "Arrêter la génération auto mensuelle."; btn.className = "px-4 py-2 bg-red-600 text-white rounded"; btn.innerText = "Désactiver"; } else { title.innerText = "Activer ?"; desc.innerHTML = "Activer la génération auto (1er du mois 6h)."; btn.className = "px-4 py-2 bg-green-600 text-white rounded"; btn.innerText = "Activer"; } document.getElementById('modalConfirmTrigger').classList.remove('hidden'); }
+    function closeModalTrigger() { document.getElementById('modalConfirmTrigger').classList.add('hidden'); }
+    function executeToggleTrigger() { closeModalTrigger(); const btn = document.getElementById('btn-trigger-action'); btn.innerHTML = '...'; btn.disabled = true; google.script.run.withSuccessHandler((r) => { btn.disabled = false; loadSettings(); }).toggleAutoTrigger(!isTriggerActive); }
+    function openResetModal() { document.getElementById('modalResetGenerate').classList.remove('hidden'); document.getElementById('resetKeepToggle').checked = true; updateResetWarning(); }
+    function closeResetModal() { document.getElementById('modalResetGenerate').classList.add('hidden'); }
+    function updateResetWarning() { const k = document.getElementById('resetKeepToggle').checked; document.getElementById('resetToggleLabel').innerText = k ? "Ajouter" : "Remplacer"; document.getElementById('resetWarningMsg').className = k ? "text-green-600" : "text-red-600"; document.getElementById('resetWarningMsg').innerText = k ? "Ajout sans suppression." : "Attention : Suppression des tâches en cours."; }
+    function confirmResetGenerate() { const c = document.getElementById('resetCount').value; const z = document.getElementById('resetZone').value; const k = document.getElementById('resetKeepToggle').checked; closeResetModal(); google.script.run.withSuccessHandler(() => { alert("Terminé"); loadAdminValidation(); }).resetAndGenerateTasks(Number(c), z, k); }
+
+    // --- IMPORT LOGIC ---
+    function switchImportTab(tabName) { document.querySelectorAll('[id^="btn-import-"]').forEach(btn => { btn.classList.remove('text-indigo-600', 'border-indigo-600'); btn.classList.add('border-transparent', 'text-gray-500'); }); document.getElementById(`btn-import-${tabName}`).classList.add('text-indigo-600', 'border-indigo-600'); document.getElementById(`btn-import-${tabName}`).classList.remove('border-transparent', 'text-gray-500'); document.querySelectorAll('[id^="tab-import-"]').forEach(div => div.classList.add('hidden')); document.getElementById(`tab-import-${tabName}`).classList.remove('hidden'); if(tabName === 'history') loadImportHistory(); }
+    function loadImportHistory() { const tbody = document.getElementById('importHistoryBody'); tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Chargement...</td></tr>'; google.script.run.withSuccessHandler(history => { tbody.innerHTML = ''; if(!history || history.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Aucun historique.</td></tr>'; return; } history.forEach(item => { const btn = `<button onclick="deleteImport('${item.id}', '${item.sheetName}')" class="text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`; tbody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4">${item.timestamp}</td><td class="px-6 py-4">${item.name}</td><td class="px-6 py-4">${item.sheetName}</td><td class="px-6 py-4 text-center">${item.exists ? '✅' : '📁'}</td><td class="px-6 py-4 text-right">${btn}</td></tr>`); }); lucide.createIcons(); }).getImportHistory(); }
+    function deleteImport(id, sheetName) { if(!confirm("Supprimer ?")) return; google.script.run.withSuccessHandler(() => loadImportHistory()).deleteImportSession(id, sheetName); }
+    function handleFileUpload() { const dateInput = document.getElementById('importDate'); const fileInput = document.getElementById('csvFile'); if (!dateInput.value || !fileInput.files.length) return alert("Infos manquantes"); const reader = new FileReader(); reader.onload = function(e) { google.script.run.withSuccessHandler(r => { alert(r.message); loadImportHistory(); }).saveImportToHistory(e.target.result, dateInput.value, fileInput.files[0].name); }; reader.readAsText(fileInput.files[0]); }
+</script>
