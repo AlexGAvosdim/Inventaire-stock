@@ -1,6 +1,6 @@
 /*** ==============================================================================
-* PROJET : GESTIONNAIRE SUPPLY CHAIN - AVOSDIM
-* VERSION : 7.1.0 (ARCHITECTURE MODULAIRE 8 FICHIERS)
+* PROJET : GESTIONNAIRE SUPPLY-CHAIN - AVOSDIM
+* VERSION : 7.2.0 (DESIGN & UX UPGRADE)
 * DATE : 30/12/2025
 * ==============================================================================
 */
@@ -18,7 +18,7 @@ function include(filename) {
 function doGet() { 
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('Avosdim Supply Chain v7.1.0')
+    .setTitle('Gestionnaire Supply-Chain') // Titre navigateur mis à jour
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL); 
 }
