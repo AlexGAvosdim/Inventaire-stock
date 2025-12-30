@@ -1,0 +1,408 @@
+<script>
+    function backgroundPoll() {
+        if(document.hidden) return; 
+        if(document.getElementById('adminValidationArea').classList.contains('hidden')) return; 
+        const ind = document.getElementById('live-sync-indicator'); 
+        if(ind) ind.classList.remove('opacity-0'); 
+        refreshCurrentTab(true); 
+    }
+
+    function loadDatabaseSilent() { 
+        google.script.run.withSuccessHandler(r => { 
+            masterDbData = r.items; 
+            isDbLoaded = true; 
+            console.log("DB Loaded Silently"); 
+            if(!document.getElementById('databaseArea').classList.contains('hidden')) { filterDb(); }
+        }).getMasterDatabase(); 
+    }
+
+    // --- NAVIGATION ---
+    function showView(name) { 
+        ['homeArea','databaseArea','operatorArea','adminValidationArea','settingsArea'].forEach(id=>document.getElementById(id).classList.add('hidden')); 
+        ['nav-home','nav-db','nav-val','nav-audit','nav-set'].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.remove('bg-indigo-50','text-indigo-700','border-indigo-100'); }); 
+        
+        const map = { 'home':'homeArea', 'database':'databaseArea', 'operator':'operatorArea', 'validation':'adminValidationArea', 'settings':'settingsArea' }; 
+        const navMap = { 'home':'nav-home', 'database':'nav-db', 'validation':'nav-val', 'operator':'nav-audit', 'settings':'nav-set' }; 
+        
+        document.getElementById(map[name]).classList.remove('hidden'); 
+        const nav = document.getElementById(navMap[name]); 
+        if(nav) nav.classList.add('bg-indigo-50','text-indigo-700','border-indigo-100'); 
+        
+        if(name==='operator') loadOperatorTasks(); 
+        if(name==='validation') { refreshCurrentTab(); } 
+        if(name==='settings') loadSettings(); 
+        if(name==='database') {
+            if(!isDbLoaded) loadDatabase();
+            else {
+                filterDb();
+                if(!dbObserver) {
+                    setTimeout(() => {
+                         if(!dbObserver) {
+                             dbObserver = new IntersectionObserver(e => { if(e[0].isIntersecting) renderNextBatch(); }, { root: document.querySelector('#databaseArea .overflow-auto'), threshold: 0.1 });
+                             dbObserver.observe(document.getElementById('dbSentinel'));
+                         }
+                    }, 100);
+                }
+            }
+        } 
+    }
+
+    // --- OPERATOR ---
+    function loadOperatorTasks() { google.script.run.withSuccessHandler(tasks => { myTasks = tasks; renderTasks(); }).getOperatorTodoList(currentUser.id, currentUser.zone); }
+    
+    function renderTasks() { 
+        const el = document.getElementById('taskList'); el.innerHTML = ''; 
+        if(myTasks.length === 0) { document.getElementById('emptyState').classList.remove('hidden'); return; } 
+        document.getElementById('emptyState').classList.add('hidden'); 
+        
+        myTasks.forEach(t => { 
+            const isRecount = t.type === 'RECOMPTAGE';
+            const isPrio = t.prio === 1 || isRecount;
+            let borderClass = ''; let bgClass = 'bg-white dark:bg-gray-800'; let iconHtml = ''; 
+            
+            if (isRecount) {
+                borderClass = 'border-l-4 border-l-red-600'; bgClass = 'bg-red-50 dark:bg-red-900/30'; 
+                iconHtml = '<div class="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-bl-lg animate-pulse">⚠️ RECOMPTAGE</div>';
+            } else if (isPrio) {
+                borderClass = 'border-l-4 border-l-orange-500'; 
+                iconHtml = '<div class="absolute top-2 right-2 text-orange-500"><i data-lucide="zap" class="w-6 h-6"></i></div>';
+            }
+
+            const card = document.createElement('div'); 
+            card.className = `${bgClass} p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col gap-4 relative overflow-hidden ${borderClass}`; 
+            card.id = `task-card-${t.taskId}`;
+            
+            card.innerHTML = `${iconHtml}<div><div class="text-6xl font-black text-blue-700 dark:text-blue-400 mb-2 tracking-tight">${t.locSnap}</div><div class="text-4xl font-mono font-bold text-gray-900 dark:text-white">${t.ref}</div><div class="text-lg text-gray-500 dark:text-gray-400 mt-1 truncate">${t.name}</div></div><div class="flex items-center gap-4 mt-2"><input type="number" id="input-${t.taskId}" placeholder="Qté" class="flex-1 py-6 text-5xl font-bold border-2 border-gray-300 rounded-2xl text-center focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 dark:bg-gray-700 dark:text-white dark:border-gray-600"><button onclick="submitCount('${t.taskId}')" class="p-6 bg-green-600 text-white rounded-2xl shadow-lg active:scale-95 transition-transform"><i data-lucide="check" class="w-12 h-12"></i></button></div>`; 
+            el.appendChild(card); 
+        }); 
+        lucide.createIcons(); 
+    }
+    
+    function submitCount(id) { 
+        const ipt = document.getElementById(`input-${id}`); 
+        if(!ipt.value) { ipt.classList.add('border-red-500'); return; } 
+        const card = document.getElementById(`task-card-${id}`);
+        if(card) card.remove();
+        google.script.run.submitTask(id, ipt.value, currentUser.id); 
+    }
+
+    // --- SPOT CHECK ---
+    function openSpotCheckModal() { 
+        document.getElementById('modalSpotCheck').classList.remove('hidden'); 
+        document.getElementById('spotStep1').classList.remove('hidden'); 
+        document.getElementById('spotStep2').classList.add('hidden'); 
+        document.getElementById('spotSearchInput').value = ''; 
+        document.getElementById('spotSearchInput').focus(); 
+        document.getElementById('spotSearchResults').innerHTML = '<p class="text-center text-gray-400 italic py-4">Commencez à taper...</p>'; 
+        if(!isDbLoaded) loadDatabaseSilent();
+    }
+    
+    function closeSpotCheckModal() { document.getElementById('modalSpotCheck').classList.add('hidden'); }
+    
+    function searchSpotDb() { 
+        const term = document.getElementById('spotSearchInput').value.toLowerCase(); 
+        if(term.length < 2) return; 
+        if(!isDbLoaded) { document.getElementById('spotSearchResults').innerHTML = 'Chargement BDD...'; return; } 
+        
+        const results = masterDbData.filter(i => i.status === 'Actif' && ((i.ref && i.ref.toLowerCase().includes(term)) || (i.name && i.name.toLowerCase().includes(term)))).slice(0, 10); 
+        const container = document.getElementById('spotSearchResults'); container.innerHTML = ''; 
+        if(results.length === 0) { container.innerHTML = '<p class="text-center text-gray-500">Aucun résultat actif.</p>'; return; } 
+        results.forEach(item => { 
+            const div = document.createElement('div'); 
+            div.className = "p-3 bg-gray-50 hover:bg-indigo-50 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg cursor-pointer transition-colors border border-gray-100 dark:border-gray-600"; 
+            div.innerHTML = `<div class="font-bold text-gray-900 dark:text-white">${item.ref}</div><div class="text-xs text-gray-500 dark:text-gray-300 truncate">${item.name}</div>`; 
+            div.onclick = () => selectSpotArticle(item); 
+            container.appendChild(div); 
+        }); 
+    }
+    
+    function selectSpotArticle(item) { 
+        document.getElementById('spotStep1').classList.add('hidden'); 
+        document.getElementById('spotStep2').classList.remove('hidden'); 
+        document.getElementById('spotArtRef').innerText = item.ref; 
+        document.getElementById('spotArtName').innerText = item.name; 
+        document.getElementById('spotQtyInput').value = ''; 
+        document.getElementById('spotQtyInput').focus(); 
+    }
+    
+    function backToSpotSearch() { 
+        document.getElementById('spotStep1').classList.remove('hidden'); 
+        document.getElementById('spotStep2').classList.add('hidden'); 
+    }
+    
+    function submitSpotCheck() { 
+        const ref = document.getElementById('spotArtRef').innerText; 
+        const qty = document.getElementById('spotQtyInput').value; 
+        if(!qty) return; 
+        google.script.run.withSuccessHandler(r => { 
+            if(r.success) { closeSpotCheckModal(); alert("Comptage enregistré !"); } 
+            else { alert("Erreur: " + r.error); } 
+        }).submitInstantCount(ref, qty, currentUser.id, currentUser.zone); 
+    }
+
+    // --- ADMIN VALIDATION ---
+    function switchInvTab(tabName) { 
+        currentInvTab = tabName; 
+        ['validation', 'encours', 'history'].forEach(t => { 
+            document.getElementById(`tab-btn-${t}`).classList.remove('active'); 
+            document.getElementById(`tab-content-${t}`).classList.add('hidden'); 
+            document.getElementById(`tab-content-${t}`).classList.remove('block'); 
+        }); 
+        document.getElementById(`tab-btn-${tabName}`).classList.add('active'); 
+        document.getElementById(`tab-content-${tabName}`).classList.remove('hidden'); 
+        document.getElementById(`tab-content-${tabName}`).classList.add('block'); 
+        refreshCurrentTab(); 
+    }
+    
+    function refreshCurrentTab(silent = false) { 
+        const now = new Date(); 
+        document.getElementById('last-update-time').innerText = now.toLocaleTimeString(); 
+        if(currentInvTab === 'validation') loadAdminValidation(silent); 
+        if(currentInvTab === 'encours') loadInProgressList(silent); 
+        if(currentInvTab === 'history') loadTaskHistory(silent); 
+    }
+
+    function loadAdminValidation(silent) { 
+        const tbody = document.getElementById('validationTableBody'); 
+        if(!silent && !appCache.pendingValidations) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Chargement...</td></tr>'; 
+        google.script.run.withSuccessHandler(list => { 
+            const json = JSON.stringify(list); 
+            if (JSON.stringify(appCache.pendingValidations) !== json) { 
+                appCache.pendingValidations = list; pendingValidations = list; renderGroupedValidationTable(); 
+            } 
+        }).getPendingValidations(); 
+    }
+
+    function renderGroupedValidationTable() { 
+        const tbody = document.getElementById('validationTableBody'); tbody.innerHTML = ''; 
+        if(pendingValidations.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 text-gray-500">Aucune validation en attente.</td></tr>'; return; } 
+        
+        const groups = {}; 
+        pendingValidations.forEach(item => { if(!groups[item.ref]) groups[item.ref] = { info: item, children: [] }; groups[item.ref].children.push(item); });
+        
+        Object.values(groups).forEach(group => { 
+            const parent = group.info; 
+            let parentPrio = '';
+            const hasPrioChild = group.children.some(c => c.others && c.others.some(o => o.prio === 1 || o.type === 'RECOMPTAGE'));
+            if (hasPrioChild) { parentPrio = '<span class="ml-2 bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded font-bold border border-red-200">⚡ PRIORITÉ</span>'; }
+            const trParent = document.createElement('tr'); 
+            trParent.className = "bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700"; 
+            trParent.innerHTML = `<td colspan="3" class="px-4 py-3"><div class="flex justify-between items-center"><div><span class="font-bold text-gray-900 dark:text-white">${parent.ref}</span><span class="text-xs text-gray-500 ml-2">${parent.name}</span>${parentPrio}</div><div class="text-xs font-mono bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded">ERP: ${parent.theo}</div></div></td>`; 
+            tbody.appendChild(trParent); 
+            
+            group.children.forEach(child => { 
+                let borderClass = 'border-l-4 border-gray-300'; let badgeColor = 'bg-gray-100 text-gray-800'; 
+                if (child.zone === 'F') { borderClass = 'border-l-4 border-l-[#FE9A37]'; badgeColor = 'bg-[#FE9A37]/20 text-[#FE9A37]'; } 
+                if (child.zone === 'G') { borderClass = 'border-l-4 border-l-[#2B7FFF]'; badgeColor = 'bg-[#2B7FFF]/20 text-[#2B7FFF]'; } 
+                if (child.zone === 'A') { borderClass = 'border-l-4 border-l-[#FFD230]'; badgeColor = 'bg-[#FFD230]/20 text-[#FFD230]'; } 
+                const isError = child.delta !== 0; const deltaColor = isError ? 'text-red-600' : 'text-green-600'; 
+                const trChild = document.createElement('tr'); 
+                trChild.className = "bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"; 
+                trChild.innerHTML = `
+                    <td class="px-4 py-3 pl-8 ${borderClass}"><div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badgeColor}">${child.zone}</span><span class="text-xs font-mono text-gray-600 dark:text-gray-400">${child.loc}</span></div><div class="text-[10px] text-gray-400 mt-1">Par ${child.user} le ${child.date}</div></td>
+                    <td class="px-4 py-3 text-center"><div class="text-lg font-bold text-gray-900 dark:text-white">${child.counted}</div><div class="text-xs ${deltaColor} font-medium">${child.delta > 0 ? '+'+child.delta : child.delta}</div></td>
+                    <td class="px-4 py-3 text-right flex justify-end gap-2">
+                        <button onclick="rejectTask('${child.taskId}')" class="text-red-400 hover:bg-red-50 p-1.5 rounded border border-red-100 flex items-center" title="Refuser"><i data-lucide="rotate-ccw" class="w-4 h-4 mr-1"></i> Refuser</button>
+                        <button onclick="validateTaskBatch(['${child.taskId}'])" class="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm hover:bg-gray-50 font-bold">Valider</button>
+                    </td>`; 
+                tbody.appendChild(trChild); 
+            }); 
+            
+            if (group.info.others && group.info.others.length > 0) { 
+                group.info.others.forEach(pend => { 
+                    let bClass = 'border-l-4 border-gray-200'; 
+                    if (pend.zone === 'F') bClass = 'border-l-4 border-l-[#FE9A37] opacity-60'; 
+                    if (pend.zone === 'G') bClass = 'border-l-4 border-l-[#2B7FFF] opacity-60'; 
+                    if (pend.zone === 'A') bClass = 'border-l-4 border-l-[#FFD230] opacity-60'; 
+                    let label = "En attente..."; let rowClass = "bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700 italic text-gray-400"; 
+                    if (pend.type === 'RECOMPTAGE') { label = "⚠️ EN RECOMPTAGE"; rowClass = "bg-red-50/50 dark:bg-red-900/20 border-b border-red-100 text-red-500 font-bold"; }
+                    else if (pend.prio === 1) { label = "⚡ PRIORITAIRE"; rowClass = "bg-orange-50/50 dark:bg-orange-900/20 border-b border-orange-100 text-orange-600 font-bold"; }
+                    const trPend = document.createElement('tr'); 
+                    trPend.className = rowClass; 
+                    trPend.innerHTML = `<td class="px-4 py-3 pl-8 ${bClass}"><div class="flex items-center gap-2"><span class="text-[10px] font-bold uppercase">${pend.zone}</span><span class="text-xs">${label}</span></div></td><td class="px-4 py-3 text-center">-</td><td class="px-4 py-3 text-right"><button onclick="togglePriority('${pend.id}')" class="text-gray-300 hover:text-yellow-500" title="Priorité"><i data-lucide="zap" class="w-4 h-4"></i></button></td>`; 
+                    tbody.appendChild(trPend); 
+                }); 
+            } 
+        }); 
+        lucide.createIcons(); 
+    }
+
+    function rejectTask(taskId) { 
+        document.getElementById('modalConfirmTrigger').setAttribute('data-action', 'reject'); 
+        document.getElementById('modalConfirmTrigger').setAttribute('data-id', taskId); 
+        const title = document.getElementById('modalTriggerTitle'); 
+        const desc = document.getElementById('modalTriggerDesc'); 
+        const btn = document.getElementById('btnConfirmTrigger'); 
+        title.innerText = "Refuser & Recompter ?"; 
+        desc.innerHTML = "Cette action va renvoyer la tâche à l'opérateur avec le statut <strong class='text-red-500'>RECOMPTAGE PRIORITAIRE</strong>.<br>L'opérateur verra une alerte spécifique."; 
+        btn.innerText = "Confirmer le rejet"; 
+        btn.className = "px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors shadow-sm font-medium"; 
+        btn.onclick = executeReject; 
+        document.getElementById('modalConfirmTrigger').classList.remove('hidden'); 
+    }
+    
+    function executeReject() { 
+        const taskId = document.getElementById('modalConfirmTrigger').getAttribute('data-id'); 
+        closeModalTrigger(); 
+        google.script.run.withSuccessHandler(r => { if(r.success) loadAdminValidation(); else alert(r.error); }).rejectTask(taskId); 
+    }
+
+    function togglePriority(taskId) { google.script.run.withSuccessHandler(r => { if(r.success) loadAdminValidation(); else alert(r.error); }).toggleTaskPriority(taskId); }
+
+    function loadInProgressList(silent) { 
+        const tbody = document.getElementById('todoTableBody'); 
+        if(!silent && !appCache.inProgressTasks) tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4">Chargement...</td></tr>'; 
+        google.script.run.withSuccessHandler(list => { 
+            const json = JSON.stringify(list); 
+            if (JSON.stringify(appCache.inProgressTasks) !== json) { 
+                appCache.inProgressTasks = list; 
+                renderGroupedInProgressTable(list); 
+            } 
+        }).getInProgressTasks(); 
+    }
+
+    function renderGroupedInProgressTable(list) { 
+        const tbody = document.getElementById('todoTableBody'); tbody.innerHTML = ''; 
+        if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 text-gray-500">Aucune liste en cours.</td></tr>'; return; } 
+        const groups = {}; list.forEach(item => { if(!groups[item.ref]) groups[item.ref] = { info: item, children: [] }; groups[item.ref].children.push(item); }); 
+        Object.values(groups).forEach(group => { 
+            const parent = group.info; 
+            const hasGlobalPrio = group.children.some(c => c.prio === 1 || c.type === 'RECOMPTAGE'); 
+            const prioTag = hasGlobalPrio ? '<span class="ml-2 bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded border border-red-200">⚡ PRIORITÉ</span>' : ''; 
+            const trParent = document.createElement('tr'); 
+            trParent.className = "bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700"; 
+            trParent.innerHTML = `<td colspan="3" class="px-4 py-2"><div class="flex justify-between items-center"><div><span class="font-bold text-xl text-gray-900 dark:text-white">${parent.ref}</span><span class="text-sm text-gray-500 ml-2">${parent.name}</span>${prioTag}</div><div class="text-sm font-mono bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded">ERP: ${parent.stockTheo || '-'}</div></div></td>`; 
+            tbody.appendChild(trParent); 
+            group.children.forEach(child => { 
+                let borderClass = 'border-l-4 border-gray-300'; let badgeColor = 'bg-gray-100 text-gray-800'; 
+                if (child.zone === 'F') { borderClass = 'border-l-4 border-l-[#FE9A37]'; badgeColor = 'bg-[#FE9A37]/20 text-[#FE9A37]'; } 
+                if (child.zone === 'G') { borderClass = 'border-l-4 border-l-[#2B7FFF]'; badgeColor = 'bg-[#2B7FFF]/20 text-[#2B7FFF]'; } 
+                if (child.zone === 'A') { borderClass = 'border-l-4 border-l-[#FFD230]'; badgeColor = 'bg-[#FFD230]/20 text-[#FFD230]'; } 
+                let statusHtml = `<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">À FAIRE</span>`; 
+                if (child.status === 'EN_COURS') statusHtml = `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs animate-pulse">EN COURS (${child.user})</span>`; 
+                if (child.type === 'RECOMPTAGE') statusHtml = `<span class="bg-red-100 text-red-600 px-2 py-1 rounded text-xs font-bold border border-red-200">⚠️ RECOMPTAGE</span>`; else if (child.prio === 1) statusHtml += ` <span class="text-orange-500 ml-1">⚡</span>`; 
+                const trChild = document.createElement('tr'); 
+                trChild.className = "bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"; 
+                trChild.innerHTML = `<td class="px-4 py-2 pl-8 ${borderClass}"><div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badgeColor}">${child.zone}</span><span class="text-xs font-mono text-gray-600 dark:text-gray-400">${child.loc}</span></div></td><td class="px-4 py-2 text-center">${statusHtml}</td><td class="px-4 py-2 text-right"><button onclick="deleteTask('${child.id}')" class="text-red-500 hover:bg-red-50 p-1 rounded" title="Supprimer"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>`; 
+                tbody.appendChild(trChild); 
+            }); 
+        }); 
+        lucide.createIcons(); 
+    }
+
+    function deleteTask(id) { if(confirm("Retirer cet article ?")) google.script.run.withSuccessHandler(() => { loadInProgressList(); loadAdminValidation(); }).deleteTask(id); }
+    function openAddArticleModal() { document.getElementById('manualRefInput').value = ''; document.getElementById('manualPrioToggle').checked = false; document.getElementById('modalAddManual').classList.remove('hidden'); document.getElementById('manualRefInput').focus(); document.getElementById('manualAddSearchResults').innerHTML = ''; if(!isDbLoaded) loadDatabaseSilent(); }
+    
+    // --- MANUAL ADD SEARCH ---
+    function searchManualAddDb() {
+        const term = document.getElementById('manualRefInput').value.toLowerCase();
+        const container = document.getElementById('manualAddSearchResults');
+        
+        if(term.length < 2) { 
+            container.innerHTML = ''; 
+            return; 
+        }
+        
+        if(!isDbLoaded) { 
+            container.innerHTML = '<p class="text-xs text-center text-gray-500">Chargement BDD...</p>'; 
+            return; 
+        }
+
+        const results = masterDbData.filter(i => 
+            i.status === 'Actif' && (
+                (i.ref && i.ref.toLowerCase().includes(term)) || 
+                (i.name && i.name.toLowerCase().includes(term))
+            )
+        ).slice(0, 8);
+
+        container.innerHTML = '';
+        if(results.length === 0) {
+                 container.innerHTML = '<p class="text-xs text-center text-gray-500 py-2">Aucun résultat actif.</p>';
+                 return;
+        }
+
+        results.forEach(item => {
+            const div = document.createElement('div');
+            div.className = "p-2 bg-gray-50 hover:bg-indigo-50 dark:bg-gray-700 dark:hover:bg-gray-600 rounded cursor-pointer border border-gray-100 dark:border-gray-600 flex justify-between items-center";
+            div.innerHTML = `<div class="truncate"><span class="font-bold text-sm text-gray-900 dark:text-white block">${item.ref}</span><span class="text-[10px] text-gray-500 dark:text-gray-400 block truncate w-48">${item.name}</span></div><i data-lucide="plus-circle" class="w-4 h-4 text-indigo-400"></i>`;
+            div.onclick = () => {
+                document.getElementById('manualRefInput').value = item.ref;
+                container.innerHTML = ''; 
+            };
+            container.appendChild(div);
+        });
+        lucide.createIcons();
+    }
+
+    function confirmAddManual() { const ref = document.getElementById('manualRefInput').value.trim(); const isPrio = document.getElementById('manualPrioToggle').checked; if(!ref) return; google.script.run.withSuccessHandler(r => { if(r.success) { document.getElementById('modalAddManual').classList.add('hidden'); loadInProgressList(); } else { alert(r.error); } }).addTaskManually(ref, isPrio); }
+    function validateConforme() { const toValidate = pendingValidations.filter(r => r.delta === 0).map(r => r.taskId); if(toValidate.length === 0) return; if(!confirm(`Valider ${toValidate.length} lignes conformes ?`)) return; google.script.run.withSuccessHandler(() => loadAdminValidation()).validateTaskBatch(toValidate); }
+    function debugGenerate() { if(confirm("ATTENTION: Ceci efface la file d'attente actuelle. Continuer ?")) google.script.run.withSuccessHandler(()=> { alert("Génération terminée."); loadAdminValidation(); }).resetAndGenerateTasks(10, 'all'); }
+    function loadTaskHistory(silent) { const tbody = document.getElementById('historyTableBody'); if(!silent && !appCache.history) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Chargement...</td></tr>'; google.script.run.withSuccessHandler(list => { const json = JSON.stringify(list); if (JSON.stringify(appCache.history) !== json) { appCache.history = list; tbody.innerHTML = ''; if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">Aucun historique.</td></tr>'; return; } list.forEach(row => { const isError = row.delta !== 0; tbody.insertAdjacentHTML('beforeend', `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700"><td class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">${row.date}</td><td class="px-3 py-2 text-xs font-medium">${row.user}</td><td class="px-3 py-2 text-xs font-mono">${row.loc}</td><td class="px-3 py-2 text-xs font-mono">${row.ref}</td><td class="px-3 py-2 text-center text-xs font-bold ${isError ? 'text-red-600' : 'text-green-600'}">${row.delta > 0 ? '+'+row.delta : row.delta}</td></tr>`); }); } }).getTaskHistory(); }
+    
+    // --- BDD LOGIC ---
+    function forceReloadDb() { isDbLoaded = false; loadDatabase(); }
+    function loadDatabase() { const loader = document.getElementById('dbLoader'); loader.classList.remove('hidden'); google.script.run.withSuccessHandler(r=>{ masterDbData = r.items; isDbLoaded = true; loader.classList.add('hidden'); filterDb(); if(!dbObserver) { dbObserver = new IntersectionObserver(e => { if(e[0].isIntersecting) renderNextBatch(); }, { root: document.querySelector('#databaseArea .overflow-auto'), threshold: 0.1 }); dbObserver.observe(document.getElementById('dbSentinel')); } document.getElementById('dbCountDisplay').innerText = `${masterDbData.length} articles`; if(r.stats) { const badgeActive = document.getElementById('badge-active-count'); const badgeImport = document.getElementById('badge-last-import'); if(badgeActive) { badgeActive.innerText = `Actifs: ${r.stats.activeCount || 0}`; badgeActive.classList.remove('hidden'); } if(badgeImport) { badgeImport.innerText = `Import: ${r.stats.lastImport || '-'}`; badgeImport.classList.remove('hidden'); } } }).withFailureHandler(err => { loader.classList.add('hidden'); alert("Erreur BDD : " + err.message); }).getMasterDatabase(); }
+    function toggleColumnGroup(group) { viewState.columns[group] = !viewState.columns[group]; const btn = document.getElementById(`btn-${group}`); btn.classList.toggle('active', viewState.columns[group]); btn.classList.toggle('inactive', !viewState.columns[group]); document.querySelectorAll(`.${group}`).forEach(el => el.classList.toggle('hidden-col', !viewState.columns[group])); }
+    function toggleStatusFilter(status) { viewState.status[status] = !viewState.status[status]; const btnId = status === 'Actif' ? 'btn-filter-actif' : 'btn-filter-inactif'; const btn = document.getElementById(btnId); btn.classList.toggle('active', viewState.status[status]); btn.classList.toggle('inactive', !viewState.status[status]); if (status === 'Inactif') { document.querySelectorAll('.col-del').forEach(el => el.classList.toggle('hidden-col', !viewState.status['Inactif'])); } filterDb(); }
+    function filterDb() { const term = document.getElementById('dbSearch').value.toLowerCase(); filteredDbData = masterDbData.filter(i => { const matchesTerm = i.ref.toLowerCase().includes(term) || i.name.toLowerCase().includes(term); const matchesStatus = (i.status === 'Actif' && viewState.status.Actif) || (i.status === 'Inactif' && viewState.status.Inactif); return matchesTerm && matchesStatus; }); document.getElementById('dbTableBody').innerHTML = ''; renderNextBatch(); document.getElementById('dbCountDisplay').innerText = `${filteredDbData.length} articles affichés`; }
+    function renderNextBatch() {
+        const tbody = document.getElementById('dbTableBody');
+        const start = tbody.childElementCount;
+        if (start >= filteredDbData.length) return;
+        
+        const batch = filteredDbData.slice(start, start + 50);
+        
+        const html = batch.map(i => {
+            try {
+                let tagBadge = `<span class="tag-badge px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px]" onclick="promptEditTag('${escapeJs(i.ref)}', '')">+</span>`;
+                if (i.tags) {
+                    tagBadge = `<span class="tag-badge px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px]" onclick="promptEditTag('${escapeJs(i.ref)}', '${escapeJs(i.tags)}')">${i.tags}</span>`;
+                }
+                
+                const d = (v) => (v === 0 || v === '0' || (v && v !== '')) ? v : '<span class="text-gray-200 dark:text-gray-600">-</span>';
+                const cf = viewState.columns['col-f'] ? '' : 'hidden-col';
+                const cg = viewState.columns['col-g'] ? '' : 'hidden-col';
+                const ca = viewState.columns['col-a'] ? '' : 'hidden-col';
+                const ct = viewState.columns['col-tech'] ? '' : 'hidden-col';
+                const cdel = viewState.status['Inactif'] ? '' : 'hidden-col';
+                const statusDot = i.status === 'Actif' ? '<span class="text-green-600">●</span>' : '<span class="text-red-300">●</span>';
+
+                return `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <td>${statusDot}</td>
+                    <td>${tagBadge}</td>
+                    <td class="font-mono text-gray-700 dark:text-gray-300 font-bold"><a href="#" onclick="openArticleHistory('${escapeJs(i.ref)}'); return false;" class="text-indigo-600 hover:text-indigo-800 hover:underline flex items-center">${i.ref} <i data-lucide="history" class="w-3 h-3 ml-1 opacity-50"></i></a></td>
+                    <td class="truncate max-w-[150px] dark:text-gray-300" title="${escapeAttribute(i.name)}">${i.name}</td>
+                    <td class="truncate max-w-[100px] text-gray-500 dark:text-gray-400">${i.suppName || ''}</td>
+                    <td class="col-f ${cf} text-center font-mono text-f bg-f-soft border-l border-f">${d(i.rackF)}</td>
+                    <td class="col-f ${cf} text-center font-mono text-f bg-f-soft">${d(i.rowF)}</td>
+                    <td class="col-f ${cf} text-center font-mono text-f bg-f-soft">${d(i.caseF)}</td>
+                    <td class="col-f ${cf} text-center text-blue-400 dark:text-blue-200 text-[9px] bg-f-soft truncate max-w-[50px]">${i.surF||''}</td>
+                    <td class="col-g ${cg} text-center font-mono text-g bg-g-soft border-l border-g">${d(i.rackG)}</td>
+                    <td class="col-g ${cg} text-center font-mono text-g bg-g-soft">${d(i.rowG)}</td>
+                    <td class="col-g ${cg} text-center font-mono text-g bg-g-soft">${d(i.caseG)}</td>
+                    <td class="col-g ${cg} text-center text-orange-400 dark:text-orange-200 text-[9px] bg-g-soft truncate max-w-[50px]">${i.surG||''}</td>
+                    <td class="col-a ${ca} text-center font-mono text-a bg-a-soft border-l border-a">${d(i.rackA)}</td>
+                    <td class="col-a ${ca} text-center font-mono text-a bg-a-soft">${d(i.rowA)}</td>
+                    <td class="col-a ${ca} text-center font-mono text-a bg-a-soft">${d(i.caseA)}</td>
+                    <td class="col-a ${ca} text-center text-purple-400 dark:text-purple-200 text-[9px] bg-a-soft truncate max-w-[50px]">${i.surA||''}</td>
+                    <td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500 border-l">${d(i.cote1)}</td>
+                    <td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote2)}</td>
+                    <td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.cote3)}</td>
+                    <td class="col-tech ${ct} text-center text-gray-400 dark:text-gray-500">${d(i.poids)}</td>
+                    <td class="text-right text-gray-800 dark:text-gray-200 font-bold border-l">${i.stock}</td>
+                    <td class="text-right text-gray-400 dark:text-gray-500 text-[9px] border-l">${i.dateAdd}</td>
+                    <td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.dateMod}</td>
+                    <td class="text-right text-gray-400 dark:text-gray-500 text-[9px]">${i.lastSeen}</td>
+                    <td class="text-right text-indigo-600 dark:text-indigo-400 font-medium">${i.lastCount || '-'}</td>
+                    <td class="col-del ${cdel} text-right text-red-500 text-[9px] border-l">${i.dateDel || ''}</td>
+                </tr>`;
+            } catch(e) { console.error("Row Error", e); return ""; }
+        }).join('');
+        
+        tbody.insertAdjacentHTML('beforeend', html);
+    }
+    
+    function promptEditTag(ref, currentTags) { const newTags = prompt(`Tags pour ${ref} :`, currentTags); if (newTags !== null) { const item = masterDbData.find(i => i.ref === ref); if(item) item.tags = newTags; filterDb(); google.script.run.updateArticleTag(ref, newTags); } }
+    function openArticleHistory(ref) { document.getElementById('modalArticleHistory').classList.remove('hidden'); document.getElementById('histRefTitle').innerText = ref; const tbody = document.getElementById('articleHistoryBody'); tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8"><div class="loader mx-auto"></div></td></tr>'; google.script.run.withSuccessHandler(history => { tbody.innerHTML = ''; if(!history || history.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">Aucun historique trouvé.</td></tr>'; return; } history.forEach(h => { tbody.insertAdjacentHTML('beforeend', `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td class="px-4 py-2 text-xs font-mono text-gray-600 dark:text-gray-400">${h.date}</td><td class="px-4 py-2 text-sm">${h.user}</td><td class="px-4 py-2 text-right font-bold">${h.qty}</td><td class="px-4 py-2 text-right text-xs text-gray-400">${h.theo}</td></tr>`); }); }).getSpecificArticleHistory(ref); }
+</script>
