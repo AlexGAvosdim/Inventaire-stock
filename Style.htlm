@@ -1,0 +1,34 @@
+<style>
+    /* --- ANIMATIONS & UTILITAIRES --- */
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4F46E5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+    
+    /* --- TABLEAUX --- */
+    .sticky-header th { position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .table-compact th, .table-compact td { padding: 4px 6px; white-space: nowrap; }
+    .hidden-col { display: none !important; }
+    .tag-badge { cursor: pointer; transition: all 0.2s; } 
+    .tag-badge:hover { transform: scale(1.05); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+    /* --- PIN PAD (LOGIN) --- */
+    .pin-btn { width: 4rem; height: 4rem; border-radius: 9999px; font-size: 1.5rem; font-weight: 700; background-color: #F3F4F6; color: #1F2937; display: flex; align-items: center; justify-content: center; user-select: none; transition: background-color 0.2s; cursor: pointer; }
+    .pin-btn:hover { background-color: #E5E7EB; } 
+    .pin-btn:active { background-color: #D1D5DB; }
+    .dark .pin-btn { background-color: #374151; color: white; } 
+    .dark .pin-btn:hover { background-color: #4B5563; }
+    .pin-dot { width: 1rem; height: 1rem; border-radius: 9999px; border: 2px solid #D1D5DB; transition: all 0.2s; }
+    .dark .pin-dot { border-color: #6B7280; } 
+    .pin-dot.filled { background-color: #4F46E5; border-color: #4F46E5; }
+
+    /* --- THEMES BATIMENTS --- */
+    .border-f { border-left-color: #FE9A37 !important; }
+    .text-f { color: #FE9A37 !important; }
+    .bg-f-soft { background-color: rgba(254, 154, 55, 0.1) !important; }
+    .border-g { border-left-color: #2B7FFF !important; }
+    .text-g { color: #2B7FFF !important; }
+    .bg-g-soft { background-color: rgba(43, 127, 255, 0.1) !important; }
+    .border-a { border-left-color: #FFD230 !important; }
+    .text-a { color: #E6B800 !important; } 
+    .bg-a-soft { background-color: rgba(255, 210, 48, 0.1) !important; }
+</style>
