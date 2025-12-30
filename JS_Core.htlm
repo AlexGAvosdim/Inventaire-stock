@@ -1,0 +1,114 @@
+<script>
+    // --- GESTION DES ERREURS ---
+    window.onerror = function(message, source, lineno, colno, error) {
+        const banner = document.getElementById('js-error-banner');
+        const text = document.getElementById('js-error-text');
+        if(banner && text) {
+            text.innerText = `Erreur JS: ${message} (Ligne ${lineno})`;
+            banner.classList.remove('hidden');
+        }
+    };
+
+    // --- VARIABLES GLOBALES ---
+    let currentUser = null; 
+    let pinBuffer = ""; 
+    let myTasks = []; 
+    let pendingValidations = []; 
+    let masterDbData = []; 
+    let filteredDbData = []; 
+    let isDbLoaded = false; 
+    let dbObserver = null;
+    let currentInvTab = 'validation';
+    let isTriggerActive = false;
+    let appCache = { pendingValidations: null, inProgressTasks: null, history: null };
+    let pollInterval = null;
+    let viewState = { columns: { 'col-f': false, 'col-g': false, 'col-a': false, 'col-tech': false }, status: { 'Actif': true, 'Inactif': false } };
+
+    // --- UTILS ---
+    function escapeAttribute(str) { if (!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function escapeJs(str) { if (!str) return ''; return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+    
+    // --- INIT ---
+    document.addEventListener('DOMContentLoaded', () => { 
+        lucide.createIcons();
+        initTheme(); 
+        loadUserList(); 
+        pollInterval = setInterval(backgroundPoll, 10000); 
+        loadDatabaseSilent(); 
+    });
+
+    // --- AUTH ---
+    function loadUserList() { 
+        const s=document.getElementById('loginUserSelect'); 
+        google.script.run
+            .withSuccessHandler(u => { 
+                s.innerHTML='<option value="">Choisir...</option>'; 
+                if(!u || u.length===0) s.innerHTML='<option value="">Aucun utilisateur trouvé</option>'; 
+                else u.forEach(x => { const o=document.createElement('option'); o.value=x.id; o.text=x.displayName; s.appendChild(o); }); 
+            })
+            .withFailureHandler(err => {
+                s.innerHTML='<option value="">Erreur</option>';
+                alert("Erreur BDD Users: " + err.message);
+            })
+            .getPublicUserList(); 
+    }
+
+    function enterPin(d) { if(pinBuffer.length<4){pinBuffer+=d;updatePinDots();if(pinBuffer.length===4)setTimeout(submitLogin,100);} }
+    function clearPin() { pinBuffer=""; updatePinDots(); document.getElementById('loginError').innerText=""; }
+    function updatePinDots() { for(let i=1;i<=4;i++) document.getElementById(`dot-${i}`).classList.toggle('filled', i<=pinBuffer.length); }
+    
+    function submitLogin() { 
+        const u=document.getElementById('loginUserSelect').value; 
+        if(!u){clearPin();document.getElementById('loginError').innerText="Sélectionnez un nom";return;} 
+        google.script.run.withSuccessHandler(r=>{ 
+            if(r.success){currentUser=r.user;initApp(r.user);}
+            else{clearPin();document.getElementById('loginError').innerText=r.error;} 
+        }).loginUser(u, pinBuffer); 
+    }
+
+    function initApp(user) { 
+        document.getElementById('loginView').classList.add('hidden'); 
+        document.getElementById('appView').classList.remove('hidden'); 
+        document.getElementById('userDisplayName').innerText = user.prenom; 
+        const zoneLabel = user.zone ? ` (Zone ${user.zone})` : ''; 
+        document.getElementById('userRoleDisplay').innerText = user.role + zoneLabel; 
+        
+        if(user.role === 'Admin') { 
+            document.getElementById('menu-admin').classList.remove('hidden'); 
+            document.getElementById('nav-audit').classList.add('hidden'); 
+            showView('validation'); 
+        } else { 
+            document.getElementById('menu-admin').classList.add('hidden'); 
+            document.getElementById('nav-audit').classList.remove('hidden'); 
+            showView('operator'); 
+        }
+        
+        if(!isDbLoaded) loadDatabaseSilent();
+    }
+
+    function logout() { 
+        currentUser=null; pinBuffer=""; myTasks=[]; pendingValidations=[]; clearPin(); 
+        document.getElementById('taskList').innerHTML=''; 
+        document.getElementById('appView').classList.add('hidden'); 
+        document.getElementById('loginView').classList.remove('hidden'); 
+        document.getElementById('loginUserSelect').value=""; 
+    }
+
+    function initTheme() { 
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark'); 
+        } else {
+            document.documentElement.classList.remove('dark'); 
+        }
+        lucide.createIcons(); 
+    }
+    
+    function toggleTheme() { 
+        if (document.documentElement.classList.contains('dark')) { 
+            document.documentElement.classList.remove('dark'); localStorage.theme = 'light'; 
+        } else { 
+            document.documentElement.classList.add('dark'); localStorage.theme = 'dark'; 
+        } 
+        lucide.createIcons(); 
+    }
+</script>
