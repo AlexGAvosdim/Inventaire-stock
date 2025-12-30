@@ -115,7 +115,9 @@ function getOperatorTodoList(userId, zoneFilter) {
       const art = articleMap.get(String(t[1])) || { name: "Inconnu" };
       const priority = (t.length > 10) ? Number(t[10]) : 0;
       const type = String(t[5]); 
-      return { taskId: t[0], ref: t[1], locSnap: t[2], name: art.name, status: t[6], prio: priority, type: type };
+      // V7.2.0: ADD DATE FROM COL 4
+      const dateGen = formatDateForDisplay(t[4]);
+      return { taskId: t[0], ref: t[1], locSnap: t[2], name: art.name, status: t[6], prio: priority, type: type, date: dateGen };
   });
   todoList.sort((a,b) => { if (a.prio !== b.prio) return b.prio - a.prio; return a.locSnap.localeCompare(b.locSnap); });
   return todoList;
@@ -138,7 +140,9 @@ function getInProgressTasks() {
       const locStr = String(r[2]);
       let zone = "?"; if(locStr.startsWith("F:")) zone = "F"; else if(locStr.startsWith("G:")) zone = "G"; else if(locStr.startsWith("A:")) zone = "A";
       const type = String(r[5]); const prio = (r.length > 10) ? Number(r[10]) : 0;
-      return { taskId: r[0], ref: ref, name: art.name, loc: locStr, zone: zone, status: r[6], user: (r[6] === 'EN_COURS') ? r[5] : "", type: type, prio: prio, stockTheo: formatQty(art.stock) };
+      // V7.2.0: ADD DATE
+      const dateGen = formatDateForDisplay(r[4]);
+      return { taskId: r[0], ref: ref, name: art.name, loc: locStr, zone: zone, status: r[6], user: (r[6] === 'EN_COURS') ? r[5] : "", type: type, prio: prio, stockTheo: formatQty(art.stock), date: dateGen };
   });
 }
 
